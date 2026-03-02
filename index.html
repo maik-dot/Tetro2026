@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris mit Materialien</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-modal">
+        <h2>Tetris wird geladen …</h2>
+        <div class="loading-bar">
+          <div id="loadingBarFill" class="loading-bar-fill"></div>
+        </div>
+        <div id="loadingText" class="loading-text">Lade Audio …</div>
+        <button id="loadingStartBtn" class="loading-start-btn hidden">
+          Starten
+        </button>
+      </div>
+    </div>
+    <div id="app">
+      <canvas id="gameCanvas" width="400" height="800"></canvas>
+      <div id="ui">
+        <h1>Tetris</h1>
+        <div class="stats">
+          <div>Punkte: <span id="scoreValue">0</span></div>
+          <div>Level: <span id="levelValue">1</span></div>
+          <div>Linien: <span id="linesValue">0</span></div>
+        </div>
+        <div class="controls">
+          <h2>Steuerung</h2>
+          <ul>
+            <li>Pfeile links/rechts: Bewegen</li>
+            <li>Pfeil hoch / X: Rotieren</li>
+            <li>Pfeil unten: Schneller fallen</li>
+            <li>Leertaste: Hard Drop</li>
+            <li>Esc: Pause</li>
+            <li>Enter / R: Neustart</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div id="pauseOverlay" class="pause-overlay hidden">
+      <div class="pause-modal">
+        <h2>Pause</h2>
+        <div class="pause-section">
+          <h3>Musik</h3>
+          <label class="pause-row">
+            <input type="checkbox" id="pauseMusicEnabled" checked />
+            <span>Musik aktiviert</span>
+          </label>
+          <label class="pause-row">
+            <span>Lautstärke</span>
+            <input
+              type="range"
+              id="pauseMusicVolume"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.8"
+            />
+          </label>
+        </div>
+        <div class="pause-section">
+          <h3>Soundeffekte</h3>
+          <label class="pause-row">
+            <input type="checkbox" id="pauseSfxEnabled" checked />
+            <span>SFX aktiviert</span>
+          </label>
+          <label class="pause-row">
+            <span>Lautstärke</span>
+            <input
+              type="range"
+              id="pauseSfxVolume"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.8"
+            />
+          </label>
+        </div>
+        <button id="pauseResumeBtn" class="pause-resume-btn">Weiter</button>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
+
