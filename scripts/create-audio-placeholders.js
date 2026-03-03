@@ -6,8 +6,26 @@ const fs = require('fs');
 const path = require('path');
 
 const NAMES = [
-  'lock', 'lockSoft', 'lockHard', 'lineClear', 'tetris',
-  'levelUp', 'gameOver', 'move', 'rotate'
+  'lock',
+  'lockSoft',
+  'lockHard',
+  'lineClear',
+  'tetris',
+  'levelUp',
+  'gameOver',
+  'move',
+  'rotate',
+  // Material-/Effekt-SFX
+  'metalImpactHeavy',
+  'metalImpactMedium',
+  'metalImpactLight',
+  'woodBreak',
+  'glassBreak',
+  'stoneBreak',
+  'stoneImpactStone',
+  'stoneImpactMetal',
+  'stoneImpactGlass',
+  'stoneImpactWood',
 ];
 
 function createMinimalWav() {

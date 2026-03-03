@@ -88,6 +88,8 @@ export class StandardMode {
 
   handleGameEvents() {
     const events = this.game.consumeEvents?.() ?? [];
+    // zuletzt gespielter Material-Impact-SFX (für Bounceback)
+    this._lastImpactSfx = null;
     for (const evt of events) {
       if (evt.type === 'linesCleared') {
         if (this.audio) {
@@ -97,6 +99,25 @@ export class StandardMode {
           this.particles.spawnLineClear(evt.rows, this.game.board.width);
           if (evt.destroyed?.length) {
             this.particles.spawnDestroyBlocks(evt.destroyed);
+            if (this.audio) {
+              let playedStone = false;
+              let playedWood = false;
+              let playedGlass = false;
+              for (const d of evt.destroyed) {
+                const mat = d.cell?.materialId;
+                if (!mat) continue;
+                if (mat === 'stone' && !playedStone) {
+                  this.audio.playSfx('stoneBreak');
+                  playedStone = true;
+                } else if (mat === 'wood' && !playedWood) {
+                  this.audio.playSfx('woodBreak');
+                  playedWood = true;
+                } else if (mat === 'glass' && !playedGlass) {
+                  this.audio.playSfx('glassBreak');
+                  playedGlass = true;
+                }
+              }
+            }
           }
           if (evt.moves?.length) {
             this._spawnMetalSparksFromMoves(evt.moves);
@@ -113,9 +134,13 @@ export class StandardMode {
       }
       if (evt.type === 'pieceLocked') {
         if (this.audio) {
-          if (evt.impactType === 'soft') this.audio.playSfx('lockSoft');
-          else if (evt.impactType === 'hard') this.audio.playSfx('lockHard');
-          else this.audio.playSfx('lock');
+          if (evt.impactType === 'soft') {
+            this.audio.playSfx('lockSoft');
+          } else if (evt.impactType === 'normal') {
+            this.audio.playSfx('lock');
+          }
+          // Für impactType === 'hard' wird der Whoosh (lockHard)
+          // bereits beim Auslösen des Harddrops im InputManager gespielt.
         }
         if (this.animation && evt.impactType !== 'normal') {
           const shakeByImpact = {
@@ -133,6 +158,48 @@ export class StandardMode {
         if (this.particles && evt.lockedCells?.length) {
           this._spawnMetalSparksFromLockedCells(evt.lockedCells);
         }
+        // Zusätzlicher, abgeschwächter Bounce-Impact-SFX nach dem visuellen Bounce
+        // Soft-Drop nutzt den generischen "lock"-Sound, Hard-Drop nutzt den
+        // zuletzt gespielten Material-Impact-SFX (stone-/metal-impact*).
+        if (this.audio && evt.impactType === 'soft') {
+          const bounceDelay = 80;
+          setTimeout(() => {
+            if (!this.audio || this.game.gameOver) return;
+            const energyFactor = 0.5;
+            const volumeMultiplier = energyFactor * 0.6; // ca. 30 % der Basislautstärke
+            const base = 1 - energyFactor;
+            const pitchOffset = base * 0.12;
+            const lowpass = 18000 + (4000 - 18000) * base;
+            const panJitter = (Math.random() * 2 - 1) * 0.15;
+
+            this.audio.playSfx('lock', {
+              volumeMultiplier,
+              pitchOffset,
+              lowpassFreq: lowpass,
+              pan: panJitter,
+            });
+          }, bounceDelay);
+        } else if (this.audio && evt.impactType === 'hard') {
+          const sfxName = this._lastImpactSfx || 'lockHard';
+          // Hard-Bounce-SFX zeitlich ans Ende der Bounce-Animation legen
+          const bounceDelay = 220;
+          setTimeout(() => {
+            if (!this.audio || this.game.gameOver) return;
+            const energyFactor = 0.5;
+            const volumeMultiplier = energyFactor * 0.1; // ca. 30 % der Basislautstärke
+            const base = 1 - energyFactor;
+            const pitchOffset = base * 0.12;
+            const lowpass = 18000 + (4000 - 18000) * base;
+            const panJitter = (Math.random() * 2 - 1) * 0.15;
+
+            this.audio.playSfx(sfxName, {
+              volumeMultiplier,
+              pitchOffset,
+              lowpassFreq: lowpass,
+              pan: panJitter,
+            });
+          }, bounceDelay);
+        }
       }
       if (evt.type === 'gameOver' && this.audio) {
         this.audio.stopMusic();
@@ -147,6 +214,9 @@ export class StandardMode {
     const particles = this.particles;
     if (!board || !particles) return;
 
+    let metalImpactPlayed = false;
+    let stoneImpactPlayed = false;
+
     for (const c of cells) {
       const here = board.getCell(c.x, c.y);
       const below = board.getCell(c.x, c.y + 1);
@@ -154,7 +224,16 @@ export class StandardMode {
       const matA = here.materialId;
       const matB = below.materialId;
       if (!matA || !matB) continue;
-      particles.spawnMetalContactSparks(c.x + 0.5, c.y + 1, matA, matB);
+      const cx = c.x + 0.5;
+      const cy = c.y + 1;
+      particles.spawnMetalContactSparks(cx, cy, matA, matB);
+      particles.spawnStoneImpactDebris(cx, cy, matA, matB);
+      if (!metalImpactPlayed) {
+        metalImpactPlayed = this._playMetalImpactForPair(matA, matB) || metalImpactPlayed;
+      }
+      if (!stoneImpactPlayed) {
+        stoneImpactPlayed = this._playStoneImpactForPair(matA, matB) || stoneImpactPlayed;
+      }
     }
   }
 
@@ -162,6 +241,9 @@ export class StandardMode {
     const board = this.game?.board;
     const particles = this.particles;
     if (!board || !particles) return;
+
+    let metalImpactPlayed = false;
+    let stoneImpactPlayed = false;
 
     for (const m of moves) {
       const x = m.x;
@@ -172,8 +254,65 @@ export class StandardMode {
       const matA = here.materialId;
       const matB = below.materialId;
       if (!matA || !matB) continue;
-      particles.spawnMetalContactSparks(x + 0.5, y + 1, matA, matB);
+      const cx = x + 0.5;
+      const cy = y + 1;
+      particles.spawnMetalContactSparks(cx, cy, matA, matB);
+      particles.spawnStoneImpactDebris(cx, cy, matA, matB);
+      if (!metalImpactPlayed) {
+        metalImpactPlayed = this._playMetalImpactForPair(matA, matB) || metalImpactPlayed;
+      }
+      if (!stoneImpactPlayed) {
+        stoneImpactPlayed = this._playStoneImpactForPair(matA, matB) || stoneImpactPlayed;
+      }
     }
+  }
+
+  _playMetalImpactForPair(matA, matB) {
+    if (!this.audio) return false;
+    const aIsMetal = matA === 'metal';
+    const bIsMetal = matB === 'metal';
+    if (!aIsMetal && !bIsMetal) return false;
+    const other = aIsMetal ? matB : matA;
+    let sfx = null;
+    if (aIsMetal && bIsMetal) {
+      sfx = 'metalImpactHeavy';
+    } else if (other === 'stone') {
+      sfx = 'metalImpactMedium';
+    } else if (other === 'glass') {
+      sfx = 'metalImpactLight';
+    } else {
+      // Holz oder anderes → kein spezieller Metall-Impact
+      return false;
+    }
+    this.audio.playSfx(sfx);
+    this._lastImpactSfx = sfx;
+    return true;
+  }
+
+  _playStoneImpactForPair(matA, matB) {
+    if (!this.audio) return false;
+    if (matA !== 'stone' && matB !== 'stone') return false;
+    const other = matA === 'stone' ? matB : matA;
+    let sfx = null;
+    switch (other) {
+      case 'stone':
+        sfx = 'stoneImpactStone';
+        break;
+      case 'metal':
+        sfx = 'stoneImpactMetal';
+        break;
+      case 'glass':
+        sfx = 'stoneImpactGlass';
+        break;
+      case 'wood':
+        sfx = 'stoneImpactWood';
+        break;
+      default:
+        return false;
+    }
+    this.audio.playSfx(sfx);
+    this._lastImpactSfx = sfx;
+    return true;
   }
 }
 

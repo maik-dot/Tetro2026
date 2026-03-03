@@ -40,3 +40,8 @@ export const MATERIAL_DISTRIBUTION = [
   { id: 'metal', weight: 1 },
 ];
 
+// Audio-/Effektkonfiguration
+// "Schwerkraft" für den Hard Drop in Zellen pro Sekunde².
+// Bei diesem Wert dauert ein Fall über 1 Zelle ungefähr 150ms.
+export const HARD_DROP_GRAVITY = 90;
+

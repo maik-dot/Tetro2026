@@ -2,8 +2,7 @@ import { Board } from './Board.js';
 import { PieceFactory } from './PieceFactory.js';
 import { BagRandomizer } from './BagRandomizer.js';
 import { Scoring } from './Scoring.js';
-import { TICK_RATES } from '../config/gameConfig.js';
-import { MATERIAL_DISTRIBUTION } from '../config/gameConfig.js';
+import { TICK_RATES, MATERIAL_DISTRIBUTION, HARD_DROP_GRAVITY } from '../config/gameConfig.js';
 import { DurabilitySystem } from './DurabilitySystem.js';
 
 export class TetrisGame {
@@ -56,6 +55,7 @@ export class TetrisGame {
     this.resolvingLines = false;
     this.lineResolveTimer = 0;
     this.pendingSpawn = false;
+    this.hardDropAnim = null;
 
     this.spawnPiece();
   }
@@ -96,6 +96,10 @@ export class TetrisGame {
 
   update(dt) {
     if (this.gameOver || this.paused) return;
+    if (this.hardDropAnim) {
+      this.updateHardDrop(dt);
+      return;
+    }
     if (this.resolvingLines) {
       this.updateLineResolution(dt);
       return;
@@ -182,7 +186,7 @@ export class TetrisGame {
   }
 
   softDropStep() {
-    if (this.gameOver || this.paused) return;
+    if (this.gameOver || this.paused || this.hardDropAnim) return;
     this.dropTimer = 0;
     this.stepDown('soft');
   }
@@ -198,7 +202,11 @@ export class TetrisGame {
   }
 
   hardDrop() {
-    if (this.gameOver || this.paused) return;
+    if (this.gameOver || this.paused || this.hardDropAnim) return;
+    if (!this.currentPiece) return;
+    // Startposition inkl. aktueller Zwischenposition aus dropProgress,
+    // damit der Block nicht sichtbar „nach oben springt“.
+    const startY = this.currentPiece.y + (this.dropProgress || 0);
     const p = this.currentPiece.clone();
     while (true) {
       p.y += 1;
@@ -207,12 +215,25 @@ export class TetrisGame {
         break;
       }
     }
-    this.currentPiece = p;
-    this.stepDown('hard');
+    const targetY = p.y;
+    if (targetY <= startY) {
+      // Kein echter Fall nötig → direkt locken
+      this.stepDown('hard');
+      return;
+    }
+    // Block visuell auf die exakte Startposition setzen
+    this.currentPiece.y = startY;
+    this.hardDropAnim = {
+      fromY: startY,
+      toY: targetY,
+      vy: 0,
+    };
+    // Basis-Fall-Timer einfrieren, solange die Hard-Drop-Animation läuft
+    this.dropTimer = 0;
   }
 
   move(dx) {
-    if (this.gameOver || this.paused) return;
+    if (this.gameOver || this.paused || this.hardDropAnim) return;
     if (!this.currentPiece) return;
 
     const snappedDown = this.dropProgress > 0;
@@ -233,11 +254,39 @@ export class TetrisGame {
   }
 
   rotateCW() {
-    if (this.gameOver || this.paused) return;
+    if (this.gameOver || this.paused || this.hardDropAnim) return;
     const p = this.currentPiece.clone();
     p.rotateCW();
     if (this.board.canPlace(p, p.x, p.y, p.rotationIndex)) {
       this.currentPiece = p;
+    }
+  }
+
+  updateHardDrop(dt) {
+    const anim = this.hardDropAnim;
+    if (!anim || !this.currentPiece) {
+      // Fallback: Animation abgebrochen → normalen Hard-Drop-Lock ausführen, falls möglich
+      this.hardDropAnim = null;
+      if (this.currentPiece) {
+        this.stepDown('hard');
+      }
+      return;
+    }
+
+    const dtSec = dt / 1000;
+    const g = HARD_DROP_GRAVITY || 90;
+
+    // Geschwindigkeit und Position im freien Fall aktualisieren
+    anim.vy = (anim.vy || 0) + g * dtSec;
+    const nextY = this.currentPiece.y + anim.vy * dtSec;
+
+    if (nextY >= anim.toY) {
+      // Einschlag erreicht oder überschritten → exakt einrasten und locken
+      this.currentPiece.y = anim.toY;
+      this.hardDropAnim = null;
+      this.stepDown('hard');
+    } else {
+      this.currentPiece.y = nextY;
     }
   }
 }

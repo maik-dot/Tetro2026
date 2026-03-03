@@ -98,6 +98,202 @@ export class ParticleSystem {
         p.temp = (p.temp ?? 1) - tempLoss;
 
         if (p.temp <= 0 && p.age > 40) return false;
+      } else if (p.type === 'stoneChip' || p.type === 'stoneChunk') {
+        // StoneDebrisUpdate: Stein-Splitter & -Brocken
+        if (!p.sleep) {
+          const g = p.ay ?? 18;
+          p.vy += g * t;
+
+          const dragLin = p.dragLin ?? 0;
+          if (dragLin > 0) {
+            // linearer Luftwiderstand
+            p.vx -= p.vx * dragLin * t;
+            p.vy -= p.vy * dragLin * t;
+          }
+
+          p.x += p.vx * t;
+          p.y += p.vy * t;
+
+          const groundY = this.groundY ?? 20;
+          if (p.y >= groundY) {
+            p.y = groundY;
+            const e = p.bounceE ?? 0.12;
+            const mu = p.friction ?? 0.85;
+            const contactDamping = p.contactDamping ?? 0.6;
+
+            // sehr inelastischer Bounce und starke Reibung
+            p.vy = -e * p.vy;
+            p.vx = (1 - mu) * p.vx;
+
+            p.vx *= contactDamping;
+            p.vy *= contactDamping;
+
+            // große Brocken: beim ersten Kontakt leichtes "Kippen"
+            if (p.type === 'stoneChunk' && !p.touchedGround) {
+              p.touchedGround = true;
+              const dir = p.vx >= 0 ? 1 : -1;
+              const impulse = 0.4 + Math.random() * 0.3;
+              p.angVel = (p.angVel ?? 0) + dir * impulse;
+            }
+          }
+
+          const speed = Math.hypot(p.vx, p.vy);
+          const sleepThreshold = p.sleepThreshold ?? 1.0;
+          if (speed < sleepThreshold && p.y >= (this.groundY ?? 20) - 0.001) {
+            p.vx = 0;
+            p.vy = 0;
+            p.sleep = true;
+          }
+        }
+
+        // Rotation / „Balancieren“ für große Brocken
+        if (p.type === 'stoneChunk' && (p.angVel ?? 0) !== 0) {
+          p.angle = (p.angle ?? 0) + p.angVel * t;
+          const damping = p.angularDamping ?? 0.82;
+          p.angVel *= damping;
+          if (Math.abs(p.angVel) < 0.02) {
+            p.angVel = 0;
+          }
+        }
+      } else if (p.type === 'woodFine' || p.type === 'woodChunk') {
+        const dtSec = t;
+        const g = p.ay ?? 16;
+        if (!p.sleep) {
+          // Gravitation
+          p.vy += g * dtSec;
+
+          // Quadratischer Luftwiderstand
+          let vx = p.vx;
+          let vy = p.vy;
+          let speed = Math.hypot(vx, vy);
+          if (speed > 0.0001) {
+            const dragK = p.dragK ?? (p.type === 'woodFine' ? 4.0 : 2.0);
+            let dragAcc = dragK * speed;
+            const maxAcc = speed / dtSec;
+            if (dragAcc > maxAcc) dragAcc = maxAcc;
+            const axDrag = (vx / speed) * dragAcc;
+            const ayDrag = (vy / speed) * dragAcc;
+            p.vx -= axDrag * dtSec;
+            p.vy -= ayDrag * dtSec;
+          }
+
+          // Leichter "Flutter"-Effekt für feine Späne
+          if (p.type === 'woodFine') {
+            const strength = p.flutterStrength ?? 6;
+            const speedPhase = p.flutterSpeed ?? 12;
+            p.flutterPhase = (p.flutterPhase ?? 0) + speedPhase * dtSec;
+            const flutterX = Math.sin(p.flutterPhase) * strength * dtSec;
+            const flutterY = -Math.cos(p.flutterPhase) * (strength * 0.15) * dtSec;
+            p.vx += flutterX;
+            p.vy += flutterY;
+          }
+
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+
+          const ground = this.groundY ?? 20;
+          if (p.y >= ground) {
+            p.y = ground;
+            const e = p.bounceE ?? 0.12;
+            const mu = p.friction ?? 0.7;
+            const contactDamping = p.contactDamping ?? 0.5;
+
+            // Weicher, stark gedämpfter Bounce
+            p.vy = -e * p.vy;
+            p.vx = (1 - mu) * p.vx;
+
+            p.vx *= contactDamping;
+            p.vy *= contactDamping;
+
+            // Rotation beim Kontakt stark dämpfen
+            if (p.angVel != null) {
+              const ad = p.angularDampingOnContact ?? 0.3;
+              p.angVel *= ad;
+            }
+          }
+
+          const speedNow = Math.hypot(p.vx, p.vy);
+          const sleepV = p.sleepThreshold ?? (p.type === 'woodFine' ? 0.8 : 0.9);
+          const sleepW = p.sleepAngularThreshold ?? 0.8;
+          const angVelAbs = Math.abs(p.angVel ?? 0);
+
+          if (speedNow < sleepV && angVelAbs < sleepW && p.y >= (this.groundY ?? 20) - 0.001) {
+            p.vx = 0;
+            p.vy = 0;
+            p.angVel = 0;
+            p.sleep = true;
+          }
+        }
+
+        // Rotation weiterführen und dämpfen
+        if (p.angVel != null && p.angVel !== 0) {
+          p.angle = (p.angle ?? 0) + p.angVel * dtSec;
+          const damping = p.angularDamping ?? 0.88;
+          p.angVel *= damping;
+          if (Math.abs(p.angVel) < 0.05) {
+            p.angVel = 0;
+          }
+        }
+      } else if (p.type === 'glassChip' || p.type === 'glassChunk') {
+        const dtSec = t;
+        if (!p.sleep) {
+          const g = p.ay ?? 18;
+          p.vy += g * dtSec;
+
+          // Moderater quadratischer Drag
+          let vx = p.vx;
+          let vy = p.vy;
+          let speed = Math.hypot(vx, vy);
+          if (speed > 0.0001) {
+            const dragK = p.dragK ?? (p.type === 'glassChip' ? 3.2 : 2.4);
+            let dragAcc = dragK * speed;
+            const maxAcc = speed / dtSec;
+            if (dragAcc > maxAcc) dragAcc = maxAcc;
+            const axDrag = (vx / speed) * dragAcc;
+            const ayDrag = (vy / speed) * dragAcc;
+            p.vx -= axDrag * dtSec;
+            p.vy -= ayDrag * dtSec;
+          }
+
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+
+          const ground = this.groundY ?? 20;
+          if (p.y >= ground) {
+            p.y = ground;
+            const e = p.bounceE ?? (p.type === 'glassChip' ? 0.38 : 0.32);
+            const mu = p.friction ?? 0.28;
+            const contactDamping = p.contactDamping ?? 0.72;
+
+            p.vy = -e * p.vy;
+            p.vx = (1 - mu) * p.vx;
+
+            p.vx *= contactDamping;
+            p.vy *= contactDamping;
+          }
+
+          const speedNow = Math.hypot(p.vx, p.vy);
+          const sleepV = p.sleepThreshold ?? 1.2;
+          const sleepW = p.sleepAngularThreshold ?? 0.9;
+          const angVelAbs = Math.abs(p.angVel ?? 0);
+
+          if (speedNow < sleepV && angVelAbs < sleepW && p.y >= (this.groundY ?? 20) - 0.001) {
+            p.vx = 0;
+            p.vy = 0;
+            p.angVel = 0;
+            p.sleep = true;
+          }
+        }
+
+        // Rotation und langsame Dämpfung, damit Scherben sichtbar drehen
+        if (p.angVel != null && p.angVel !== 0) {
+          p.angle = (p.angle ?? 0) + p.angVel * dt;
+          const damping = p.angularDamping ?? 0.9;
+          p.angVel *= damping;
+          if (Math.abs(p.angVel) < 0.03) {
+            p.angVel = 0;
+          }
+        }
       } else {
         // Standard-Partikel (Rauch, Splitter, etc.)
         const drag = p.drag ?? 0;
@@ -142,110 +338,360 @@ export class ParticleSystem {
   }
 
   _spawnGlassShards(x, y) {
-    const count = 22;
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.random() - 0.5) * Math.PI;
-      const speed = 6 + Math.random() * 6;
+    const chipCount = 28;
+    const shardCount = 6;
+
+    // Viele kleine Splitter
+    for (let i = 0; i < chipCount; i++) {
+      // volle 360°-Streuung, damit links/rechts gleichverteilt sind
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 7 + Math.random() * 9;
       this.particles.push({
-        type: 'glassShard',
+        type: 'glassChip',
         x: x + (Math.random() - 0.5) * 0.5,
         y: y + (Math.random() - 0.5) * 0.3,
         vx: Math.cos(angle) * speed,
-        vy: -Math.abs(Math.sin(angle) * speed),
-        ax: 0,
-        ay: 12,
-        drag: 1.1,
-        life: 320 + Math.random() * 220,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragK: 3.2,
+        bounceE: 0.4,
+        friction: 0.25,
+        contactDamping: 0.8,
+        sleepThreshold: 1.4,
+        sleepAngularThreshold: 1.2,
+        life: 280 + Math.random() * 720,
         age: 0,
-        sizePx: 1 + Math.floor(Math.random() * 2),
-        startColor: { r: 200 + Math.random() * 40, g: 240, b: 255 },
-        endColor: { r: 130, g: 200, b: 255 },
+        sizePx: 2 + Math.floor(Math.random() * 2),
+        angle: Math.random() * Math.PI * 2,
+        angVel: (Math.random() - 0.5) * 14,
+        angularDamping: 0.9,
+        startColor: {
+          r: 190 + Math.random() * 40,
+          g: 230 + Math.random() * 25,
+          b: 255,
+        },
+        endColor: {
+          r: 150 + Math.random() * 25,
+          g: 210 + Math.random() * 25,
+          b: 245,
+        },
+      });
+    }
+
+    // Größere Scherben
+    for (let i = 0; i < shardCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 4 + Math.random() * 5;
+      const size = 4 + Math.floor(Math.random() * 3);
+      this.particles.push({
+        type: 'glassChunk',
+        x: x + (Math.random() - 0.5) * 0.4,
+        y: y + (Math.random() - 0.5) * 0.25,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragK: 2.4,
+        bounceE: 0.32,
+        friction: 0.32,
+        contactDamping: 0.78,
+        sleepThreshold: 1.2,
+        sleepAngularThreshold: 0.9,
+        life: 520 + Math.random() * 1280,
+        age: 0,
+        sizePx: size,
+        angle: Math.random() * Math.PI * 2,
+        angVel: (Math.random() - 0.5) * 8,
+        angularDamping: 0.92,
+        startColor: {
+          r: 185 + Math.random() * 25,
+          g: 225 + Math.random() * 20,
+          b: 255,
+        },
+        endColor: {
+          r: 150 + Math.random() * 20,
+          g: 205 + Math.random() * 20,
+          b: 245,
+        },
       });
     }
   }
 
   _spawnWoodSplinters(x, y) {
-    const count = 14;
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.random() - 0.5) * (Math.PI / 1.4);
-      const speed = 4 + Math.random() * 4;
+    const fineCount = 26;
+    const chunkCount = 5;
+
+    // Feine Späne / Splitter – symmetrisch links / oben / rechts
+    for (let i = 0; i < fineCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 1 / 3) baseAngle = (-3 * Math.PI) / 4; // links-oben
+      else if (bandR < 2 / 3) baseAngle = -Math.PI / 2; // gerade nach oben
+      else baseAngle = -Math.PI / 4; // rechts-oben
+      const spread = Math.PI / 10;
+      const ang = baseAngle + (Math.random() - 0.5) * spread;
+      const speed = 3.5 + Math.random() * 3.5;
+      const size = 3 + Math.floor(Math.random() * 2);
       this.particles.push({
-        type: 'woodChip',
-        x: x + (Math.random() - 0.5) * 0.4,
+        type: 'woodFine',
+        x: x + (Math.random() - 0.5) * 0.5,
         y: y + (Math.random() - 0.5) * 0.3,
-        vx: Math.cos(angle) * speed,
-        vy: -Math.abs(Math.sin(angle) * speed) * 0.6,
-        ax: 0,
-        ay: 13,
-        drag: 1.8,
-        life: 420 + Math.random() * 260,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 16,
+        dragK: 4.0,
+        bounceE: 0.12,
+        friction: 0.7,
+        contactDamping: 0.55,
+        sleepThreshold: 0.9,
+        sleepAngularThreshold: 1.0,
+        life: 240 + Math.random() * 520,
         age: 0,
-        sizePx: 1 + Math.floor(Math.random() * 2),
-        startColor: { r: 180 + Math.random() * 30, g: 130 + Math.random() * 25, b: 80 },
-        endColor: { r: 120, g: 90, b: 60 },
+        sizePx: size,
+        angle: ang,
+        angVel: (Math.random() - 0.5) * 10,
+        angularDamping: 0.88,
+        angularDampingOnContact: 0.35,
+        flutterStrength: 6,
+        flutterSpeed: 12,
+        startColor: {
+          r: 175 + Math.random() * 35,
+          g: 130 + Math.random() * 25,
+          b: 80 + Math.random() * 20,
+        },
+        endColor: {
+          r: 125 + Math.random() * 20,
+          g: 95 + Math.random() * 20,
+          b: 65 + Math.random() * 15,
+        },
       });
     }
-    // Staub
-    for (let i = 0; i < 8; i++) {
-      const speed = 2 + Math.random() * 2;
+
+    // Größere Holzstücke
+    for (let i = 0; i < chunkCount; i++) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const speedX = (0.6 + Math.random() * 0.8) * side;
+      const speedY = 1.6 + Math.random() * 1.6;
+      const size = 5 + Math.floor(Math.random() * 3);
       this.particles.push({
-        type: 'smoke',
-        x: x + (Math.random() - 0.5) * 0.6,
-        y: y + 0.2,
-        vx: (Math.random() - 0.5) * speed,
-        vy: -Math.random() * 1.5,
-        ax: 0,
-        ay: -4,
-        drag: 1.5,
-        life: 520 + Math.random() * 420,
+        type: 'woodChunk',
+        x: x + (Math.random() - 0.5) * 0.4,
+        y: y + (Math.random() - 0.5) * 0.25,
+        vx: speedX,
+        vy: speedY,
+        ay: 16,
+        dragK: 2.0,
+        bounceE: 0.09,
+        friction: 0.75,
+        contactDamping: 0.5,
+        sleepThreshold: 0.9,
+        sleepAngularThreshold: 0.8,
+        life: 600 + Math.random() * 1200,
         age: 0,
-        sizePx: 1,
-        radiusCell: 0.4 + Math.random() * 0.4,
-        startColor: { r: 140, g: 110, b: 80 },
-        endColor: { r: 80, g: 70, b: 60 },
+        sizePx: size,
+        angle: (Math.random() - 0.5) * 0.6,
+        angVel: (Math.random() - 0.5) * 5,
+        angularDamping: 0.9,
+        angularDampingOnContact: 0.4,
+        startColor: {
+          r: 170 + Math.random() * 25,
+          g: 130 + Math.random() * 20,
+          b: 82 + Math.random() * 20,
+        },
+        endColor: {
+          r: 120 + Math.random() * 15,
+          g: 95 + Math.random() * 15,
+          b: 70 + Math.random() * 15,
+        },
       });
     }
   }
 
   _spawnStoneDebris(x, y) {
-    const count = 14;
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.random() - 0.5) * (Math.PI / 1.8);
-      const speed = 3 + Math.random() * 3;
+    // StoneDebrisEmitter: viele kleine Splitter + größere Brocken.
+    // Intensität/Menge und Lebensdauer sind hier bewusst hoch,
+    // damit das Zerbrechen eines Steinblocks wie ein voller Geröllkollaps wirkt.
+    const chipCount = 36; // doppelte Menge
+    const chunkCount = 6; // doppelte Menge
+
+    // Kleine Splitter
+    for (let i = 0; i < chipCount; i++) {
+      // Bänder für links / Mitte / rechts im oberen Halbraum
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 1 / 3) baseAngle = (-3 * Math.PI) / 4; // links-oben
+      else if (bandR < 2 / 3) baseAngle = -Math.PI / 2; // gerade nach oben
+      else baseAngle = -Math.PI / 4; // rechts-oben
+      const spread = Math.PI / 8;
+      const angle = baseAngle + (Math.random() - 0.5) * spread;
+      const speed = 3.5 + Math.random() * 4.5;
+      this.particles.push({
+        type: 'stoneChip',
+        x: x + (Math.random() - 0.5) * 0.5,
+        y: y + (Math.random() - 0.5) * 0.3,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragLin: 4.0,
+        bounceE: 0.18,
+        friction: 0.8,
+        contactDamping: 0.6,
+        sleepThreshold: 1.2,
+        life: 520 + Math.random() * 1440, // doppelte Haltbarkeit
+        age: 0,
+        sizePx: 3 + Math.floor(Math.random() * 2),
+        startColor: {
+          r: 150 + Math.random() * 25,
+          g: 155 + Math.random() * 25,
+          b: 165 + Math.random() * 25,
+        },
+        endColor: {
+          r: 95 + Math.random() * 20,
+          g: 100 + Math.random() * 20,
+          b: 110 + Math.random() * 20,
+        },
+      });
+    }
+
+    // Große Brocken
+    for (let i = 0; i < chunkCount; i++) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const speedX = (0.35 + Math.random() * 0.55) * side;
+      const speedY = 1.2 + Math.random() * 1.4;
+      const size = 6 + Math.floor(Math.random() * 3);
+      this.particles.push({
+        type: 'stoneChunk',
+        x: x + (Math.random() - 0.5) * 0.4,
+        y: y + (Math.random() - 0.5) * 0.2,
+        vx: speedX,
+        vy: speedY,
+        ay: 18,
+        dragLin: 1.5,
+        bounceE: 0.08,
+        friction: 0.9,
+        contactDamping: 0.5,
+        sleepThreshold: 0.8,
+        life: 1800 + Math.random() * 2800, // doppelte Haltbarkeit
+        age: 0,
+        sizePx: size,
+        angle: (Math.random() - 0.5) * 0.6,
+        angVel: 0,
+        angularDamping: 0.82,
+        startColor: {
+          r: 145 + Math.random() * 20,
+          g: 150 + Math.random() * 20,
+          b: 160 + Math.random() * 20,
+        },
+        endColor: {
+          r: 95 + Math.random() * 15,
+          g: 100 + Math.random() * 15,
+          b: 105 + Math.random() * 15,
+        },
+      });
+    }
+  }
+
+  /**
+   * Stein-Impact-Emitter: kleine Bruchstücke + Staub bei Zusammenstößen.
+   *
+   * - stone + stone → sehr viele Bruchstücke, viel Staub
+   * - stone + metal → mittlere Menge, etwa 1/2 von stone+stone
+   * - stone + glass → wenige Bruchstücke & Staub
+   * - stone + wood  → sehr wenige Bruchstücke, kein Staub
+   */
+  spawnStoneImpactDebris(x, y, matA, matB) {
+    if (!matA || !matB) return;
+    if (matA !== 'stone' && matB !== 'stone') return;
+
+    const other = matA === 'stone' ? matB : matA;
+    let chipFactor = 0;
+    let smokeFactor = 0;
+
+    switch (other) {
+      case 'stone':
+        chipFactor = 1.0;
+        smokeFactor = 1.0;
+        break;
+      case 'metal':
+        chipFactor = 0.5;
+        smokeFactor = 0.5;
+        break;
+      case 'glass':
+        chipFactor = 0.3;
+        smokeFactor = 0.3;
+        break;
+      case 'wood':
+        chipFactor = 0.15;
+        smokeFactor = 0;
+        break;
+      default:
+        return;
+    }
+
+    this._spawnStoneImpact(x, y, chipFactor, smokeFactor);
+  }
+
+  _spawnStoneImpact(x, y, chipFactor, smokeFactor) {
+    const baseChips = 14;
+    const baseSmoke = 9;
+    const chipCount = Math.round(baseChips * chipFactor);
+    const smokeCount = Math.round(baseSmoke * smokeFactor);
+
+    // kleine Bruchstücke
+    for (let i = 0; i < chipCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 1 / 3) baseAngle = (-3 * Math.PI) / 4;
+      else if (bandR < 2 / 3) baseAngle = -Math.PI / 2;
+      else baseAngle = -Math.PI / 4;
+      const spread = Math.PI / 10;
+      const angle = baseAngle + (Math.random() - 0.5) * spread;
+      const speed = 2.5 + Math.random() * 3;
       this.particles.push({
         type: 'stoneChip',
         x: x + (Math.random() - 0.5) * 0.4,
-        y: y + (Math.random() - 0.5) * 0.3,
+        y: y + (Math.random() - 0.2) * 0.3,
         vx: Math.cos(angle) * speed,
-        vy: -Math.abs(Math.sin(angle) * speed) * 0.7,
-        ax: 0,
-        ay: 14,
-        drag: 1.6,
-        life: 520 + Math.random() * 380,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragLin: 3.5,
+        bounceE: 0.12,
+        friction: 0.85,
+        contactDamping: 0.65,
+        sleepThreshold: 1.3,
+        life: 180 + Math.random() * 520,
         age: 0,
-        sizePx: 1 + Math.floor(Math.random() * 2),
-        startColor: { r: 160 + Math.random() * 20, g: 170 + Math.random() * 20, b: 180 + Math.random() * 20 },
-        endColor: { r: 110, g: 115, b: 120 },
+        sizePx: 2 + Math.floor(Math.random() * 2),
+        startColor: {
+          r: 148 + Math.random() * 18,
+          g: 150 + Math.random() * 18,
+          b: 155 + Math.random() * 18,
+        },
+        endColor: {
+          r: 95 + Math.random() * 15,
+          g: 98 + Math.random() * 15,
+          b: 102 + Math.random() * 15,
+        },
       });
     }
-    // Staubwolke
-    for (let i = 0; i < 10; i++) {
-      const speed = 1.5 + Math.random() * 1.5;
+
+    // dezente Staubfahne für harte Impacts (kein Staub bei Holz)
+    for (let i = 0; i < smokeCount; i++) {
+      const speed = 1 + Math.random() * 1.5;
       this.particles.push({
         type: 'smoke',
-        x: x + (Math.random() - 0.5) * 0.8,
-        y: y + 0.3,
+        x: x + (Math.random() - 0.5) * 0.5,
+        y: y - 0.1 + Math.random() * 0.2,
         vx: (Math.random() - 0.5) * speed,
-        vy: -Math.random() * 1.2,
+        vy: -Math.random() * 1.4,
         ax: 0,
-        ay: -3,
-        drag: 1.7,
-        life: 650 + Math.random() * 520,
+        ay: -2.5,
+        drag: 1.4,
+        life: 420 + Math.random() * 360,
         age: 0,
         sizePx: 1,
-        radiusCell: 0.5 + Math.random() * 0.5,
-        startColor: { r: 130, g: 135, b: 140 },
-        endColor: { r: 90, g: 95, b: 100 },
+        radiusCell: 0.35 + Math.random() * 0.35,
+        startColor: { r: 135, g: 135, b: 140 },
+        endColor: { r: 90, g: 90, b: 95 },
       });
     }
   }

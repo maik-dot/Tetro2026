@@ -14,6 +14,17 @@ const SFX_NAMES = [
   'gameOver',
   'move',
   'rotate',
+  // Material-/Effekt-SFX
+  'metalImpactHeavy',
+  'metalImpactMedium',
+  'metalImpactLight',
+  'woodBreak',
+  'glassBreak',
+  'stoneBreak',
+  'stoneImpactStone',
+  'stoneImpactMetal',
+  'stoneImpactGlass',
+  'stoneImpactWood',
 ];
 
 const EXTENSIONS = ['.ogg', '.mp3', '.wav'];
@@ -33,6 +44,8 @@ export class AudioManager {
     this._musicStartTime = 0;
     this.sfxGain = 0.25;
     this.musicGain = 0.2;
+    // Zufällige Tonhöhen-Variation für SFX (z.B. 0.08 = ±8 %)
+    this.sfxPitchJitter = 0.08;
     this.muted = false;
     this.sfxEnabled = true;
     this.musicEnabled = true;
@@ -105,18 +118,62 @@ export class AudioManager {
     }
   }
 
-  playSfx(name) {
+  playSfx(name, options = {}) {
     const ctx = this.ensureContext();
     if (!ctx || this.muted || !this.sfxEnabled) return;
     if (ctx.state !== 'running') return;
     const buffer = this.buffers.get(name);
     if (!buffer) return;
+
+    const {
+      volumeMultiplier = 1,
+      pitchOffset = 0, // z.B. 0.06 → +6 %
+      lowpassFreq = null,
+      pan = null,
+    } = options;
+
     const src = ctx.createBufferSource();
-    const gain = ctx.createGain();
     src.buffer = buffer;
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(this.sfxGain, ctx.currentTime);
+
+    let node = src;
+
+    // Lautstärke
+    const gain = ctx.createGain();
+    const finalGain = this.sfxGain * volumeMultiplier;
+    gain.gain.setValueAtTime(finalGain, ctx.currentTime);
+    node.connect(gain);
+    node = gain;
+
+    // Optionaler Lowpass-Filter
+    if (lowpassFreq && lowpassFreq > 0) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(lowpassFreq, ctx.currentTime);
+      node.connect(filter);
+      node = filter;
+    }
+
+    // Optionales Stereo-Panning
+    if (typeof pan === 'number' && ctx.createStereoPanner) {
+      const panner = ctx.createStereoPanner();
+      panner.pan.setValueAtTime(pan, ctx.currentTime);
+      node.connect(panner);
+      node = panner;
+    }
+
+    node.connect(ctx.destination);
+
+    // Pitch-Variation (globales Jitter + optionaler Offset)
+    let rate = 1;
+    const jitter = this.sfxPitchJitter ?? 0;
+    if (jitter > 0) {
+      rate *= 1 + (Math.random() * 2 - 1) * jitter; // 1 ± jitter
+    }
+    if (pitchOffset) {
+      rate *= 1 + pitchOffset;
+    }
+    src.playbackRate.setValueAtTime(rate, ctx.currentTime);
+
     src.start(ctx.currentTime);
   }
 

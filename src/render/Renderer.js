@@ -115,6 +115,7 @@ export class Renderer {
   drawCurrentPiece(ctx, game, cellSize, offsetX, offsetY) {
     const piece = game.currentPiece;
     if (!piece) return;
+    const hardDropActive = !!game.hardDropAnim;
     if (this._lastPieceRef !== piece) {
       this._lastPieceRef = piece;
       this._visualPieceX = piece.x;
@@ -127,14 +128,31 @@ export class Renderer {
     }
     const lerpFactor = 0.35;
     this._visualPieceX = this._visualPieceX + (piece.x - this._visualPieceX) * lerpFactor;
-    this._visualPieceY = this._visualPieceY + (piece.y - this._visualPieceY) * lerpFactor;
+    if (hardDropActive) {
+      // Beim Hard-Drop vertikale Position nicht weich interpolieren,
+      // damit es keinen optischen „Rücksprung“ gibt.
+      this._visualPieceY = piece.y;
+    } else {
+      this._visualPieceY = this._visualPieceY + (piece.y - this._visualPieceY) * lerpFactor;
+    }
     this._lastPieceY = piece.y;
 
-    let fallOffset = game.dropProgress ?? 0;
-    const testPiece = piece.clone();
-    testPiece.y += 1;
-    const canFall = game.board?.canPlace(testPiece, testPiece.x, testPiece.y, testPiece.rotationIndex);
-    if (!canFall) fallOffset = 0;
+    // Beim Hard-Drop wird die vertikale Animation explizit in TetrisGame gesteuert.
+    // In dieser Phase kann piece.y nicht-integer sein → dann KEINE Kollisionsabfrage
+    // mit dem Board durchführen, um Index-Fehler zu vermeiden.
+    let fallOffset = 0;
+    if (!game.hardDropAnim) {
+      fallOffset = game.dropProgress ?? 0;
+      const testPiece = piece.clone();
+      testPiece.y += 1;
+      const canFall = game.board?.canPlace(
+        testPiece,
+        testPiece.x,
+        testPiece.y,
+        testPiece.rotationIndex,
+      );
+      if (!canFall) fallOffset = 0;
+    }
     const blocks = piece.getBlocks();
     for (const b of blocks) {
       const x = this._visualPieceX + b.x;
@@ -236,7 +254,40 @@ export class Renderer {
         b = Math.round(start.b + (end.b - start.b) * t);
         const sizePx = p.sizePx ?? 1;
         ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-        ctx.fillRect(px, py, sizePx, sizePx);
+
+        if (
+          p.type === 'stoneChunk' ||
+          p.type === 'woodFine' ||
+          p.type === 'woodChunk' ||
+          p.type === 'glassChip' ||
+          p.type === 'glassChunk'
+        ) {
+          // längliche / kantige Fragmente als gedrehte Rechtecke
+          let w = sizePx;
+          let h = sizePx;
+          if (p.type === 'woodFine') {
+            w = sizePx * 2.2;
+            h = sizePx * 0.7;
+          } else if (p.type === 'woodChunk') {
+            w = sizePx * 1.8;
+            h = sizePx * 0.9;
+          } else if (p.type === 'glassChip') {
+            w = sizePx * 1.6;
+            h = sizePx * 0.9;
+          } else if (p.type === 'glassChunk') {
+            w = sizePx * 1.9;
+            h = sizePx * 1.1;
+          } else if (p.type === 'stoneChunk') {
+            w = sizePx * 1.3;
+            h = sizePx;
+          }
+          ctx.translate(px, py);
+          ctx.rotate(p.angle ?? 0);
+          ctx.fillRect(-w / 2, -h / 2, w, h);
+        } else {
+          // Standard: kleine Chips ohne Emission
+          ctx.fillRect(px, py, sizePx, sizePx);
+        }
       }
       ctx.restore();
     }

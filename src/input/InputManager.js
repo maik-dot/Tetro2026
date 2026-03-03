@@ -21,7 +21,10 @@ export class InputManager {
     });
     this.keyboard.on('softDrop', () => this.game.softDropStep());
     this.keyboard.on('softDropEnd', () => {});
-    this.keyboard.on('hardDrop', () => this.game.hardDrop());
+    this.keyboard.on('hardDrop', () => {
+      this.game.hardDrop();
+      if (this.audio) this.audio.playSfx('lockHard');
+    });
     this.keyboard.on('togglePause', () => this.game.togglePause());
     this.keyboard.on('restart', () => this.game.reset());
   }
