@@ -24,7 +24,14 @@ export class BlockRenderer {
   }
 
   drawBlock(ctx, x, y, opts, cellSize, offsetX, offsetY) {
-    const { colorId = 0, materialId = 'wood', hp = 1, maxHp = 1 } = opts ?? {};
+    const {
+      colorId = 0,
+      materialId = 'wood',
+      hp = 1,
+      maxHp = 1,
+      variantSeed = null,
+      textureRotation = 0,
+    } = opts ?? {};
     const px = offsetX + x * cellSize;
     const py = offsetY + y * cellSize;
     const radius = Math.floor(cellSize * 0.22);
@@ -32,22 +39,52 @@ export class BlockRenderer {
     const skin = getMaterialSkin(materialId);
     const hpRatio = Math.max(0, Math.min(1, maxHp ? hp / maxHp : 1));
 
-    // 1) Sprite-Rendering, falls vorhanden
-    const spriteKey = `${materialId}_hp${hp}`;
-    let img = this.spriteManager?.getSprite(spriteKey);
-    if (!img) {
-      img = this.spriteManager?.getSprite(materialId);
+    // 1) Sprite-Rendering, falls vorhanden.
+    //    Verwendet zufällige/seed-basierte Varianten pro Material.
+    let img = null;
+    if (this.spriteManager?.getVariantSprite) {
+      // Für aktive Blöcke wird in der Regel ein fester variantSeed
+      // übergeben; nur im Notfall fällt es auf eine positionsbasierte
+      // Variante zurück.
+      const seed =
+        variantSeed != null ? variantSeed : (x * 73856093) ^ (y * 19349663);
+      img = this.spriteManager.getVariantSprite(materialId, seed);
+    } else if (this.spriteManager?.getSprite) {
+      img = this.spriteManager.getSprite(materialId);
     }
 
     if (img) {
+      const angle = (textureRotation % 4) * (Math.PI / 2);
+      const cx = px + cellSize / 2;
+      const cy = py + cellSize / 2;
+
       ctx.save();
-      this.roundRect(ctx, px + 1, py + 1, cellSize - 2, cellSize - 2, radius);
+      ctx.translate(cx, cy);
+      if (angle !== 0) ctx.rotate(angle);
+      this.roundRect(
+        ctx,
+        -cellSize / 2 + 1,
+        -cellSize / 2 + 1,
+        cellSize - 2,
+        cellSize - 2,
+        radius,
+      );
       ctx.clip();
-      ctx.drawImage(img, px + 1, py + 1, cellSize - 2, cellSize - 2);
+      ctx.drawImage(
+        img,
+        -cellSize / 2 + 1,
+        -cellSize / 2 + 1,
+        cellSize - 2,
+        cellSize - 2,
+      );
       ctx.restore();
+
+      // Rahmen, Glas-Overlay und Schaden bleiben unrotiert auf dem Grid
       ctx.lineWidth = 1;
       ctx.strokeStyle = skin.shadow;
+      this.roundRect(ctx, px + 1, py + 1, cellSize - 2, cellSize - 2, radius);
       ctx.stroke();
+     // this.drawGlassOverlay(ctx, px, py, cellSize);
       this.drawDamageOverlay(ctx, px, py, cellSize, hpRatio);
       return;
     }
@@ -68,6 +105,7 @@ export class BlockRenderer {
     ctx.stroke();
 
     this.drawMaterialDetails(ctx, px, py, cellSize, materialId, base);
+   // this.drawGlassOverlay(ctx, px, py, cellSize);
     this.drawDamageOverlay(ctx, px, py, cellSize, hpRatio);
 
     ctx.beginPath();
@@ -154,6 +192,30 @@ export class BlockRenderer {
       ctx.lineTo(px + Math.floor(cellSize * 0.75), py + Math.floor(cellSize * 0.6));
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  drawGlassOverlay(ctx, px, py, cellSize) {
+    const r = Math.floor(cellSize * 0.22);
+    ctx.save();
+    this.roundRect(ctx, px + 1, py + 1, cellSize - 2, cellSize - 2, r);
+    ctx.clip();
+
+    // oberer Glanzstreifen
+    let grad = ctx.createLinearGradient(px, py + 1, px, py + cellSize * 0.55);
+    grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    grad.addColorStop(0.4, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize * 0.55);
+
+    // leichter seitlicher Glanz links
+    grad = ctx.createLinearGradient(px + 1, py + 1, px + cellSize * 0.45, py + cellSize - 2);
+    grad.addColorStop(0, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(px + 1, py + 1, cellSize * 0.45, cellSize - 2);
+
     ctx.restore();
   }
 

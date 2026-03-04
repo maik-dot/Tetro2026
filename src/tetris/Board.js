@@ -45,13 +45,15 @@ export class Board {
   }
 
   lockPiece(piece) {
-    const blocks = piece.getBlocks();
+    const blocks = piece.getBlocksWithSeeds?.() ?? piece.getBlocks();
     const material = MATERIALS[piece.materialId] ?? MATERIALS.wood;
     const maxHp = material?.maxHp ?? 1;
     for (const b of blocks) {
       const x = piece.x + b.x;
       const y = piece.y + b.y;
       if (this.inside(x, y)) {
+        const variantSeed = b.seed ?? piece.getVariantSeed?.(b.x, b.y) ?? null;
+        const textureRotation = piece._texturePhase ?? 0;
         this.setCell(x, y, {
           type: piece.type,
           colorId: piece.colorId,
@@ -60,6 +62,8 @@ export class Board {
           isFragment: false,
           hp: maxHp,
           maxHp,
+          variantSeed,
+          textureRotation,
         });
       }
     }

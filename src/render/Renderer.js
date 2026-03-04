@@ -83,6 +83,8 @@ export class Renderer {
               materialId: cell.materialId,
               hp: cell.hp,
               maxHp: cell.maxHp,
+              variantSeed: cell.variantSeed ?? null,
+              textureRotation: cell.textureRotation ?? 0,
             },
             cellSize,
             offsetX,
@@ -104,6 +106,7 @@ export class Renderer {
           materialId: cell.materialId,
           hp: cell.hp,
           maxHp: cell.maxHp,
+          textureRotation: cell.textureRotation ?? 0,
         },
         cellSize,
         offsetX,
@@ -153,16 +156,25 @@ export class Renderer {
       );
       if (!canFall) fallOffset = 0;
     }
-    const blocks = piece.getBlocks();
+    const blocks = piece.getBlocksWithSeeds?.() ?? piece.getBlocks();
+    const textureRotation = piece._texturePhase ?? 0;
     for (const b of blocks) {
       const x = this._visualPieceX + b.x;
       const y = this._visualPieceY + b.y + fallOffset;
       const maxHp = game.durability?.getMaxHp(piece.materialId) ?? 1;
+      const variantSeed = b.seed ?? piece.getVariantSeed?.(b.x, b.y) ?? null;
       this.blockRenderer.drawBlock(
         ctx,
         x,
         y,
-        { colorId: piece.colorId, materialId: piece.materialId, hp: maxHp, maxHp },
+        {
+          colorId: piece.colorId,
+          materialId: piece.materialId,
+          hp: maxHp,
+          maxHp,
+          variantSeed,
+          textureRotation,
+        },
         cellSize,
         offsetX,
         offsetY,
