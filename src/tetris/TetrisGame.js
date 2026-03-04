@@ -56,6 +56,7 @@ export class TetrisGame {
     this.lineResolveTimer = 0;
     this.pendingSpawn = false;
     this.hardDropAnim = null;
+    this._nextPieceId = 1;
 
     this.spawnPiece();
   }
@@ -69,6 +70,7 @@ export class TetrisGame {
     this.currentPiece = PieceFactory.create(type);
     this.currentPiece.x = 3;
     this.currentPiece.y = 0;
+    this.currentPiece.pieceId = this._nextPieceId++;
     this.currentPiece.materialId = this.randomMaterialId();
     this.nextPieceType = this.randomizer.next();
 
@@ -128,35 +130,35 @@ export class TetrisGame {
       y: lockedPiece.y + b.y,
     }));
     this.board.lockPiece(this.currentPiece);
+    let slimeMoves = null;
+    // Schleim: Blöcke fallen nachträglich in Lücken (wird animiert)
+    if (lockedPiece.materialId === 'slime') {
+      slimeMoves = this.board.applySlimeGravity();
+    }
     this.currentPiece = null;
 
-    const firstResult = this.board.clearFullLines();
-    let totalCleared = 0;
-    if (firstResult.count) {
-      totalCleared += firstResult.count;
-      this.scoring.addLines(firstResult.count);
-      this.emitEvent({
-        type: 'linesCleared',
-        rows: firstResult.rows,
-        moves: firstResult.moves,
-        destroyed: firstResult.destroyed,
-      });
-      this.resolvingLines = true;
-      this.lineResolveTimer = 0;
-      this.pendingSpawn = true;
-    } else {
-      this.spawnPiece();
-    }
+    // Nach jedem Lock folgt ein eindeutiger Resolve-Zyklus
+    // (Line-Clears, Gravitation, evtl. Kettenreaktionen).
+    this.resolvingLines = true;
+    this.lineResolveTimer = 0;
+    this.pendingSpawn = true;
 
     this.dropTimer = 0;
 
     this.emitEvent({
       type: 'pieceLocked',
       piece: lockedPiece,
-      clearedLines: totalCleared,
+      clearedLines: 0,
       impactType,
       lockedCells,
     });
+
+    if (slimeMoves && slimeMoves.length) {
+      this.emitEvent({
+        type: 'slimeSettle',
+        moves: slimeMoves,
+      });
+    }
   }
 
   updateLineResolution(dt) {
@@ -166,6 +168,7 @@ export class TetrisGame {
     if (this.lineResolveTimer < RESOLVE_DELAY) return;
     this.lineResolveTimer = 0;
 
+    // Klassischer Resolve-Zyklus: Lines-Clear + Gravitation, ggf. mehrfach.
     const result = this.board.clearFullLines();
     if (result.count) {
       this.scoring.addLines(result.count);
@@ -173,8 +176,21 @@ export class TetrisGame {
         type: 'linesCleared',
         rows: result.rows,
         moves: result.moves,
-        destroyed: result.destroyed,
+        destroyed: result.destroyed ?? [],
       });
+
+      // Nach dem klassischen Nachrücken können neue Lücken unter Schleimblöcken
+      // entstehen. Diese sollen in derselben Resolve-Phase nochmals in freie
+      // Lücken „nachrutschen“, bevor wir weiterprüfen.
+      const slimeMoves = this.board.applySlimeGravity();
+      if (slimeMoves && slimeMoves.length) {
+        this.emitEvent({
+          type: 'slimeSettle',
+          moves: slimeMoves,
+        });
+      }
+
+      // Weitere Ketten-Clears werden in der nächsten Resolve-Runde behandelt
       return;
     }
 

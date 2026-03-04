@@ -10,6 +10,8 @@ Basis-Sprites pro Material:
 - `glass.png`
 - `stone.png`
 - `metal.png`
+- `grass.png`
+- `slime.png`
 
 Optionale Varianten pro Haltbarkeits-Stufe (HP):
 
@@ -17,6 +19,8 @@ Optionale Varianten pro Haltbarkeits-Stufe (HP):
 - `glass_hp1.png`, …
 - `stone_hp1.png`, `stone_hp2.png`, `stone_hp3.png`
 - `metal_hp1.png`, `metal_hp2.png`, `metal_hp3.png`, `metal_hp4.png`
+- `grass_hp1.png` (Gras hat 1 HP)
+- `slime_hp1.png` (Schleim hat 1 HP)
 
 Die Engine versucht zuerst für einen Block mit Material `X` und aktueller `hp` ein Sprite:
 

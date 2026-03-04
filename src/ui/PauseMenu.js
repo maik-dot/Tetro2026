@@ -7,6 +7,7 @@ export class PauseMenu {
     this.musicVolumeEl = document.getElementById('pauseMusicVolume');
     this.sfxEnabledEl = document.getElementById('pauseSfxEnabled');
     this.sfxVolumeEl = document.getElementById('pauseSfxVolume');
+    this.debugAnimEl = document.getElementById('pauseDebugAnimation');
     this.resumeBtn = document.getElementById('pauseResumeBtn');
 
     this._wireEvents();
@@ -54,6 +55,15 @@ export class PauseMenu {
         const v = parseFloat(this.sfxVolumeEl.value);
         if (!Number.isNaN(v)) {
           this.audio.setVolume('sfx', v);
+        }
+      });
+    }
+
+    if (this.debugAnimEl) {
+      this.debugAnimEl.addEventListener('change', () => {
+        const enabled = !!this.debugAnimEl.checked;
+        if (typeof this.onDebugAnimationChange === 'function') {
+          this.onDebugAnimationChange(enabled);
         }
       });
     }

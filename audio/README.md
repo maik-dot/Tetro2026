@@ -25,6 +25,15 @@ Aktuell sind Platzhalter als kurze stille WAV-Dateien vorhanden. Du kannst sie d
 | stoneImpactMetal   | Stein auf Metall (Bruchstücke + mittlerer Staub) |
 | stoneImpactGlass   | Stein auf Glas (wenige Bruchstücke + Staub)      |
 | stoneImpactWood    | Stein auf Holz (wenige Bruchstücke, dumpfer Hit) |
+| woodImpactStone    | Holz auf Stein (Splitter + viel Rauch)           |
+| woodImpactMetal    | Holz auf Metall (Splitter + mittlerer Rauch)     |
+| woodImpactGlass    | Holz auf Glas (wenige Splitter + Rauch)          |
+| woodImpactWood     | Holz auf Holz (viele Splitter, etwas Rauch)      |
+| glassImpactGlass   | Glas auf Glas (eigener Impact-SFX)               |
+| grassBreak         | Gras-/Erdblock zerbricht (Gras + Erde)           |
+| slimeBreak         | Schleimblock zerplatzt / zerfließt               |
+| slimeImpact        | Schleimblock prallt auf / fließt in Lücken       |
+| grassImpact        | Gras-/Erdblock prallt auf beliebiges Material    |
 
 Neue Platzhalter erzeugen (falls nötig):  
 `node scripts/create-audio-placeholders.js`

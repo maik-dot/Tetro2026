@@ -3,6 +3,9 @@ export class Piece {
     this.type = type;
     this.rotations = rotations;
     this.colorId = colorId;
+    // Wird von TetrisGame beim Spawn gesetzt, um Blöcke auf dem Board
+    // einem Tetromino zuordnen zu können (Fragment-Tracking).
+    this.pieceId = null;
     this.materialId = 'wood';
     this.rotationIndex = 0;
     this.x = 3;
@@ -12,6 +15,7 @@ export class Piece {
   clone() {
     const p = new Piece(this.type, this.rotations, this.colorId);
     p.materialId = this.materialId;
+    p.pieceId = this.pieceId;
     p.rotationIndex = this.rotationIndex;
     p.x = this.x;
     p.y = this.y;

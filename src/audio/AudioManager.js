@@ -25,6 +25,17 @@ const SFX_NAMES = [
   'stoneImpactMetal',
   'stoneImpactGlass',
   'stoneImpactWood',
+  'woodImpactStone',
+  'woodImpactMetal',
+  'woodImpactGlass',
+  'woodImpactWood',
+  // eigener Glas-auf-Glas-Impact
+  'glassImpactGlass',
+  // neue Materialien
+  'grassBreak',
+  'slimeBreak',
+  'slimeImpact',
+  'grassImpact',
 ];
 
 const EXTENSIONS = ['.ogg', '.mp3', '.wav'];
@@ -43,7 +54,8 @@ export class AudioManager {
     this._musicPausedAt = 0;
     this._musicStartTime = 0;
     this.sfxGain = 0.25;
-    this.musicGain = 0.2;
+    // Musik standardmäßig deutlich leiser (25 % des bisherigen Werts)
+    this.musicGain = 0.05;
     // Zufällige Tonhöhen-Variation für SFX (z.B. 0.08 = ±8 %)
     this.sfxPitchJitter = 0.08;
     this.muted = false;

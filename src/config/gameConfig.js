@@ -28,13 +28,17 @@ export const INPUT_CONFIG = {
 
 export const MATERIALS = {
   glass: { id: 'glass', name: 'Glas', maxHp: 1, gravityFactor: 0.8 },
-  wood: { id: 'wood', name: 'Holz', maxHp: 2, gravityFactor: 1 },
+  grass: { id: 'grass', name: 'Gras', maxHp: 1, gravityFactor: 0.7 },
+  slime: { id: 'slime', name: 'Schleim', maxHp: 1, gravityFactor: 0.9 },
+  wood: { id: 'wood', name: 'Holz', maxHp: 2, gravityFactor: 1.0 },
   stone: { id: 'stone', name: 'Stein', maxHp: 3, gravityFactor: 1.2 },
   metal: { id: 'metal', name: 'Metall', maxHp: 4, gravityFactor: 1.4 },
 };
 
 export const MATERIAL_DISTRIBUTION = [
   { id: 'glass', weight: 3 },
+  { id: 'grass', weight: 2 },
+  { id: 'slime', weight: 1.5 },
   { id: 'wood', weight: 4 },
   { id: 'stone', weight: 2 },
   { id: 'metal', weight: 1 },

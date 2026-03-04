@@ -5,6 +5,8 @@ export class AnimationSystem {
     this.lineFalls = [];
     this.lockBounces = [];
     this.fallBlocks = [];
+    // Wenn true, laufen alle Auflöse-/Fall-Animationen stark verlangsamt.
+    this.debugSlowAnimations = false;
   }
 
   addShake(strength = 6, duration = 180) {
@@ -13,25 +15,29 @@ export class AnimationSystem {
   }
 
   update(dt) {
+    const scale = this.debugSlowAnimations ? 0.15 : 1;
+    const sdt = dt * scale;
+
     if (this.shakeTime > 0) {
-      this.shakeTime -= dt;
+      this.shakeTime -= sdt;
       if (this.shakeTime < 0) this.shakeTime = 0;
       if (this.shakeTime === 0) this.shakeStrength = 0;
     }
 
     this.lineFalls = this.lineFalls.filter((f) => {
-      f.time += dt;
+      f.time += sdt;
       return f.time < f.duration;
     });
 
     this.lockBounces = this.lockBounces.filter((lb) => {
-      lb.time += dt;
+      lb.time += sdt;
       return lb.time < lb.duration;
     });
 
     this.fallBlocks = this.fallBlocks.filter((b) => {
-      b.elapsed += dt;
-      return b.elapsed < b.duration;
+      b.elapsed += sdt;
+      const delay = b.delay ?? 0;
+      return b.elapsed < delay + b.duration;
     });
   }
 
@@ -72,6 +78,7 @@ export class AnimationSystem {
       normal: { amplitude: 0.06, duration: 140 },
       soft: { amplitude: 0.12, duration: 180 },
       hard: { amplitude: 0.2, duration: 220 },
+      slime: { amplitude: 0.16, duration: 260 },
     };
     const { amplitude, duration } = config[impactType] ?? config.normal;
     this.lockBounces.push({
@@ -97,13 +104,26 @@ export class AnimationSystem {
   addBlockFalls(moves, materials) {
     if (!moves || !moves.length) return;
     const MATERIALS = materials ?? {};
-    const baseDuration = 200; // ms, Grunddauer pro Fall-Animation
-    for (const move of moves) {
+    const baseDuration = 220; // ms, Grunddauer pro Fall-Animation
+
+    // Bewegungen nach Startzeile sortieren (niedrigere Zeilen zuerst),
+    // damit die der gelöschten Zeile nächstgelegene Reihe zuerst fällt.
+    const sorted = [...moves].sort((a, b) => b.fromY - a.fromY);
+    const uniqueRows = [...new Set(sorted.map((m) => m.fromY))];
+    uniqueRows.sort((a, b) => b - a); // von unten nach oben
+
+    const rowDelayMs = 90; // Verzögerung zwischen den Reihen
+
+    for (const move of sorted) {
       const dy = move.toY - move.fromY;
       if (dy <= 0) continue;
       const mat = MATERIALS[move.cell?.materialId] || {};
       const g = mat.gravityFactor ?? 1;
-      const duration = Math.max(120, Math.min(240, baseDuration / g));
+      const duration = Math.max(160, Math.min(320, baseDuration / g));
+
+      const rowIndex = uniqueRows.indexOf(move.fromY);
+      const delay = Math.max(0, rowIndex) * rowDelayMs;
+
       this.fallBlocks.push({
         x: move.x,
         fromY: move.fromY,
@@ -111,6 +131,7 @@ export class AnimationSystem {
         cell: move.cell,
         elapsed: 0,
         duration,
+        delay,
       });
     }
   }
@@ -118,7 +139,19 @@ export class AnimationSystem {
   getFallingBlocks() {
     const result = [];
     for (const b of this.fallBlocks) {
-      const t = Math.min(1, b.elapsed / b.duration);
+      const delay = b.delay ?? 0;
+      const raw = b.elapsed - delay;
+      if (raw <= 0) {
+        // Noch nicht gestartet → Block bleibt optisch an der Startposition.
+        result.push({
+          x: b.x,
+          y: b.fromY,
+          toY: b.toY,
+          cell: b.cell,
+        });
+        continue;
+      }
+      const t = Math.min(1, raw / b.duration);
       const eased = t * t; // Beschleunigung (Gravitationseffekt)
       const y = b.fromY + (b.toY - b.fromY) * eased;
       result.push({
@@ -129,6 +162,10 @@ export class AnimationSystem {
       });
     }
     return result;
+  }
+
+  setDebugSlowAnimations(enabled) {
+    this.debugSlowAnimations = !!enabled;
   }
 }
 

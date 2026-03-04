@@ -1,3 +1,8 @@
+// Lokale Hilfsfunktion (vereinfachtes lerp) für Partikeleffekte
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 export class ParticleSystem {
   constructor(groundY = 20) {
     this.particles = [];
@@ -294,6 +299,159 @@ export class ParticleSystem {
             p.angVel = 0;
           }
         }
+      } else if (p.type === 'grassBlade' || p.type === 'dirtChunk') {
+        const dtSec = t;
+        const g = p.ay ?? 17;
+        if (!p.sleep) {
+          // Gravitation
+          p.vy += g * dtSec;
+
+          // Luftwiderstand abhängig vom Typ
+          let vx = p.vx;
+          let vy = p.vy;
+          let speed = Math.hypot(vx, vy);
+          if (speed > 0.0001) {
+            const dragK =
+              p.dragK ??
+              (p.type === 'grassBlade'
+                ? 4.6 // Gras: sehr hoher Drag, windanfällig
+                : 2.2); // Erde: moderater Drag
+            let dragAcc = dragK * speed;
+            const maxAcc = speed / dtSec;
+            if (dragAcc > maxAcc) dragAcc = maxAcc;
+            const axDrag = (vx / speed) * dragAcc;
+            const ayDrag = (vy / speed) * dragAcc;
+            p.vx -= axDrag * dtSec;
+            p.vy -= ayDrag * dtSec;
+          }
+
+          // Wind / Noise vor allem für Gras
+          if (p.type === 'grassBlade') {
+            const windStrength = p.windStrength ?? 10;
+            const windSpeed = p.windSpeed ?? 6;
+            p.windPhase = (p.windPhase ?? 0) + windSpeed * dtSec;
+            const wx = Math.sin(p.windPhase) * windStrength * dtSec;
+            const wy = -Math.cos(p.windPhase) * (windStrength * 0.2) * dtSec;
+            p.vx += wx;
+            p.vy += wy;
+          }
+
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+
+          const ground = this.groundY ?? 20;
+          if (p.y >= ground) {
+            p.y = ground;
+            const e = p.bounceE ?? (p.type === 'dirtChunk' ? 0.18 : 0.04);
+            const mu = p.friction ?? 0.8;
+            const contactDamping = p.contactDamping ?? 0.6;
+
+            // Erde: kleiner Bounce, Gras: fast kein Bounce
+            p.vy = -e * p.vy;
+            p.vx = (1 - mu) * p.vx;
+
+            p.vx *= contactDamping;
+            p.vy *= contactDamping;
+
+            // Rotation stark dämpfen beim Kontakt
+            if (p.angVel != null) {
+              const ad = p.angularDampingOnContact ?? 0.35;
+              p.angVel *= ad;
+            }
+          }
+
+          const speedNow = Math.hypot(p.vx, p.vy);
+          const sleepV = p.sleepThreshold ?? (p.type === 'grassBlade' ? 0.7 : 0.9);
+          const sleepW = p.sleepAngularThreshold ?? 0.8;
+          const angVelAbs = Math.abs(p.angVel ?? 0);
+
+          if (speedNow < sleepV && angVelAbs < sleepW && p.y >= (this.groundY ?? 20) - 0.001) {
+            p.vx = 0;
+            p.vy = 0;
+            p.angVel = 0;
+            p.sleep = true;
+          }
+        }
+
+        // Rotation weiterführen und dämpfen
+        if (p.angVel != null && p.angVel !== 0) {
+          p.angle = (p.angle ?? 0) + p.angVel * dt;
+          const damping = p.angularDamping ?? 0.9;
+          p.angVel *= damping;
+          if (Math.abs(p.angVel) < 0.04) {
+            p.angVel = 0;
+          }
+        }
+      } else if (p.type === 'slimeDrop' || p.type === 'slimeTiny') {
+        const dtSec = t;
+        const g = p.ay ?? 18;
+        if (!p.sleep) {
+          // Gravitation
+          p.vy += g * dtSec;
+
+          // Quadratischer Luftwiderstand
+          let vx = p.vx;
+          let vy = p.vy;
+          let speed = Math.hypot(vx, vy);
+          if (speed > 0.0001) {
+            const dragK = p.dragK ?? 2.6;
+            let dragAcc = dragK * speed;
+            const maxAcc = speed / dtSec;
+            if (dragAcc > maxAcc) dragAcc = maxAcc;
+            const axDrag = (vx / speed) * dragAcc;
+            const ayDrag = (vy / speed) * dragAcc;
+            p.vx -= axDrag * dtSec;
+            p.vy -= ayDrag * dtSec;
+          }
+
+          // Viskositäts-Dämpfung (zäher Schleim)
+          const visc = p.viscosity ?? 4.0;
+          const viscFactor = Math.max(0, 1 - visc * dtSec);
+          p.vx *= viscFactor;
+          p.vy *= viscFactor;
+
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+
+          const ground = this.groundY ?? 20;
+          if (p.y >= ground) {
+            p.y = ground;
+            const e = p.bounceE ?? 0.05;
+            const mu = p.friction ?? 0.85;
+            const contactDamping = p.contactDamping ?? 0.5;
+
+            // Sehr geringer Bounce, stark gedämpft
+            p.vy = -e * p.vy;
+            p.vx = (1 - mu) * p.vx;
+            p.vx *= contactDamping;
+            p.vy *= contactDamping;
+
+            if (!p.squashed) {
+              // Erster Aufprall → „Plattdrücken“
+              p.squashed = true;
+              p.squashTimer = 0;
+              p.stretchX = (p.stretchX ?? 1) * 1.6;
+              p.stretchY = (p.stretchY ?? 1) * 0.6;
+            }
+          }
+
+          if (p.squashed) {
+            p.squashTimer += dt;
+            const dur = p.squashDuration ?? 220;
+            const k = Math.min(1, p.squashTimer / dur);
+            // langsam zum Ruhezustand zurück interpolieren
+            p.stretchX = lerp(p.stretchX ?? 1.2, 1, k);
+            p.stretchY = lerp(p.stretchY ?? 0.7, 1, k);
+          }
+        }
+
+        const speedNow = Math.hypot(p.vx, p.vy);
+        const sleepV = p.sleepThreshold ?? 0.6;
+        if (speedNow < sleepV && p.y >= (this.groundY ?? 20) - 0.001) {
+          p.vx = 0;
+          p.vy = 0;
+          p.sleep = true;
+        }
       } else {
         // Standard-Partikel (Rauch, Splitter, etc.)
         const drag = p.drag ?? 0;
@@ -321,6 +479,13 @@ export class ParticleSystem {
       switch (mat) {
         case 'glass':
           this._spawnGlassShards(x, y);
+          break;
+        case 'grass':
+          // Zerstörung: 50 % mehr Volumen + brauner Staub
+          this._spawnGrassDirt(x, y, { intensity: 1.5, smokeIntensity: 1.0 });
+          break;
+        case 'slime':
+          this._spawnSlimeSplats(x, y);
           break;
         case 'wood':
           this._spawnWoodSplinters(x, y);
@@ -414,6 +579,144 @@ export class ParticleSystem {
         },
       });
     }
+  }
+
+  _spawnGrassDirt(x, y, options = {}) {
+    // Gemischter Auswurf: überwiegend Gras, etwas Erde
+    const intensity = options.intensity ?? 1;
+    const smokeIntensity = options.smokeIntensity ?? 0;
+    const baseTotal = 26;
+    const total = Math.max(1, Math.round(baseTotal * intensity));
+    const grassCount = Math.round(total * 0.7);
+    const dirtCount = total - grassCount;
+
+    // Gras-Halme
+    for (let i = 0; i < grassCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 1 / 3) baseAngle = (-3 * Math.PI) / 4;
+      else if (bandR < 2 / 3) baseAngle = -Math.PI / 2;
+      else baseAngle = -Math.PI / 4;
+      const spread = Math.PI / 8;
+      const ang = baseAngle + (Math.random() - 0.5) * spread;
+      const speed = 2.2 + Math.random() * 2.4;
+      const size = 2 + Math.floor(Math.random() * 2);
+
+      this.particles.push({
+        type: 'grassBlade',
+        x: x + (Math.random() - 0.5) * 0.6,
+        y: y + (Math.random() - 0.5) * 0.3,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 17,
+        dragK: 4.8,
+        bounceE: 0.04,
+        friction: 0.85,
+        contactDamping: 0.7,
+        sleepThreshold: 0.7,
+        sleepAngularThreshold: 0.8,
+        life: 220 + Math.random() * 380,
+        age: 0,
+        sizePx: size,
+        angle: (Math.random() - 0.5) * 0.9,
+        angVel: (Math.random() - 0.5) * 7,
+        angularDamping: 0.9,
+        angularDampingOnContact: 0.35,
+        windStrength: 9,
+        windSpeed: 9,
+        startColor: {
+          r: 90 + Math.random() * 20,
+          g: 150 + Math.random() * 40,
+          b: 70 + Math.random() * 25,
+        },
+        endColor: {
+          r: 70 + Math.random() * 15,
+          g: 120 + Math.random() * 30,
+          b: 60 + Math.random() * 20,
+        },
+      });
+    }
+
+    // Erdkrümel
+    for (let i = 0; i < dirtCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 0.5) baseAngle = (-3 * Math.PI) / 4;
+      else baseAngle = -Math.PI / 4;
+      const spread = Math.PI / 12;
+      const ang = baseAngle + (Math.random() - 0.5) * spread;
+      const speed = 2.6 + Math.random() * 2.6;
+      const size = 2 + Math.floor(Math.random() * 2);
+
+      this.particles.push({
+        type: 'dirtChunk',
+        x: x + (Math.random() - 0.5) * 0.5,
+        y: y + (Math.random() - 0.5) * 0.25,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 18,
+        dragK: 2.3,
+        bounceE: 0.2,
+        friction: 0.88,
+        contactDamping: 0.65,
+        sleepThreshold: 0.9,
+        sleepAngularThreshold: 1.0,
+        life: 360 + Math.random() * 520,
+        age: 0,
+        sizePx: size,
+        angle: 0,
+        angVel: (Math.random() - 0.5) * 4,
+        angularDamping: 0.9,
+        angularDampingOnContact: 0.5,
+        startColor: {
+          r: 90 + Math.random() * 25,
+          g: 70 + Math.random() * 20,
+          b: 45 + Math.random() * 20,
+        },
+        endColor: {
+          r: 70 + Math.random() * 20,
+          g: 55 + Math.random() * 15,
+          b: 35 + Math.random() * 15,
+        },
+      });
+    }
+
+    // Brauner Staub / Rauch (nur für starke Zerstörung sinnvoll)
+    if (smokeIntensity > 0) {
+      const baseSmoke = 10;
+      const smokeCount = Math.round(baseSmoke * smokeIntensity);
+      for (let i = 0; i < smokeCount; i++) {
+        const speed = 0.6 + Math.random() * 1.0;
+        const ang = (-Math.PI / 2) + (Math.random() - 0.5) * (Math.PI / 4);
+        this.particles.push({
+          type: 'smoke',
+          x: x + (Math.random() - 0.5) * 0.6,
+          y: y + 0.1 + (Math.random() - 0.5) * 0.3,
+          vx: Math.cos(ang) * speed * 0.8,
+          vy: Math.sin(ang) * speed * 0.6,
+          ax: 0,
+          ay: -1.8,
+          drag: 1.3,
+          life: 360 + Math.random() * 320,
+          age: 0,
+          sizePx: 1,
+          radiusCell: 0.35 + Math.random() * 0.25,
+          startColor: { r: 120, g: 90, b: 60 },
+          endColor: { r: 80, g: 60, b: 40 },
+        });
+      }
+    }
+  }
+
+  /**
+   * Gras-Impact-Emitter: Gras-/Erd-Splitter bei Aufprall eines Grasblocks.
+   * Nutzt dieselben Partikeltypen wie grassBreak, aber ohne zusätzlichen Rauch
+   * und mit normaler Intensität.
+   */
+  spawnGrassImpactDebris(x, y, matA, matB) {
+    if (!matA || !matB) return;
+    if (matA !== 'grass' && matB !== 'grass') return;
+    this._spawnGrassDirt(x, y, { intensity: 1.0, smokeIntensity: 0 });
   }
 
   _spawnWoodSplinters(x, y) {
@@ -630,6 +933,179 @@ export class ParticleSystem {
     this._spawnStoneImpact(x, y, chipFactor, smokeFactor);
   }
 
+  /**
+   * Glas-Impact-Emitter: Splitter/Scherben bei Zusammenstößen.
+   *
+   * - glass + stone → viele Splitter, mittlere Scherbenmenge, eher seitlich
+   * - glass + metal → viele Splitter, mittlere Scherbenmenge, leicht nach oben
+   * - glass + glass → mittlere Splitter/Scherben
+   * - glass + wood  → weniger Splitter/Scherben, eher seitlich
+   *
+   * Kein Rauch – nur Glas-Splitter.
+   */
+  spawnGlassImpactDebris(x, y, matA, matB) {
+    if (!matA || !matB) return;
+    if (matA !== 'glass' && matB !== 'glass') return;
+
+    const other = matA === 'glass' ? matB : matA;
+    let chipFactor = 0;
+    let chunkFactor = 0;
+    let upwardBias = 0.3; // 0 = stark seitlich, 1 = stark nach oben
+
+    switch (other) {
+      case 'stone':
+        chipFactor = 1.0;
+        chunkFactor = 0.5;
+        upwardBias = 0.25;
+        break;
+      case 'metal':
+        chipFactor = 0.9;
+        chunkFactor = 0.5;
+        upwardBias = 0.45;
+        break;
+      case 'glass':
+        chipFactor = 0.7;
+        chunkFactor = 0.4;
+        upwardBias = 0.35;
+        break;
+      case 'wood':
+        chipFactor = 0.45;
+        chunkFactor = 0.25;
+        upwardBias = 0.25;
+        break;
+      default:
+        return;
+    }
+
+    this._spawnGlassImpact(x, y, chipFactor, chunkFactor, upwardBias);
+  }
+
+  /**
+   * Holz-Impact-Emitter: feine, längliche Späne + dezente Rauchfahne.
+   *
+   * - wood + stone → viele Splitter, viel Rauch, eher seitlich
+   * - wood + metal → viele Splitter, mittlerer Rauch, leicht nach oben
+   * - wood + glass → wenige Splitter & wenig Rauch
+   * - wood + wood  → viele Splitter, etwas Rauch, eher seitlich
+   */
+  spawnWoodImpactDebris(x, y, matA, matB) {
+    if (!matA || !matB) return;
+    if (matA !== 'wood' && matB !== 'wood') return;
+
+    const other = matA === 'wood' ? matB : matA;
+    let chipFactor = 0;
+    let smokeFactor = 0;
+    let upwardBias = 0; // 0 = seitlich, 1 = eher nach oben
+
+    switch (other) {
+      case 'stone':
+        chipFactor = 1.0;
+        smokeFactor = 1.0;
+        upwardBias = 0.3;
+        break;
+      case 'metal':
+        chipFactor = 1.0;
+        smokeFactor = 0.7;
+        upwardBias = 0.7;
+        break;
+      case 'glass':
+        chipFactor = 0.35;
+        smokeFactor = 0.35;
+        upwardBias = 0.5;
+        break;
+      case 'wood':
+        chipFactor = 0.9;
+        smokeFactor = 0.5;
+        upwardBias = 0.2;
+        break;
+      default:
+        return;
+    }
+
+    this._spawnWoodImpact(x, y, chipFactor, smokeFactor, upwardBias);
+  }
+
+  _spawnWoodImpact(x, y, chipFactor, smokeFactor, upwardBias) {
+    const baseChips = 18;
+    const baseSmoke = 8;
+    const chipCount = Math.round(baseChips * chipFactor);
+    const smokeCount = Math.round(baseSmoke * smokeFactor);
+
+    // Feine, längliche Späne
+    for (let i = 0; i < chipCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 0.5) {
+        // seitlich links/rechts
+        baseAngle = bandR < 0.25 ? Math.PI : 0;
+      } else {
+        baseAngle = -Math.PI / 2;
+      }
+      const spread = Math.PI / 10;
+      let ang = baseAngle + (Math.random() - 0.5) * spread;
+      // Bias nach oben abhängig vom Ziel (andere Materialien)
+      ang = lerp(ang, -Math.PI / 2, upwardBias * 0.5);
+      const speed = 2.8 + Math.random() * 3.2;
+      const size = 3 + Math.floor(Math.random() * 2);
+      this.particles.push({
+        type: 'woodFine',
+        x: x + (Math.random() - 0.5) * 0.4,
+        y: y + (Math.random() - 0.3) * 0.3,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 16,
+        dragK: 4.0,
+        bounceE: 0.08,
+        friction: 0.7,
+        contactDamping: 0.6,
+        sleepThreshold: 0.8,
+        sleepAngularThreshold: 1.0,
+        life: 180 + Math.random() * 420,
+        age: 0,
+        sizePx: size,
+        angle: ang,
+        angVel: (Math.random() - 0.5) * 9,
+        angularDamping: 0.88,
+        angularDampingOnContact: 0.35,
+        flutterStrength: 5,
+        flutterSpeed: 11,
+        startColor: {
+          r: 175 + Math.random() * 35,
+          g: 130 + Math.random() * 25,
+          b: 80 + Math.random() * 20,
+        },
+        endColor: {
+          r: 125 + Math.random() * 20,
+          g: 95 + Math.random() * 20,
+          b: 65 + Math.random() * 15,
+        },
+      });
+    }
+
+    // Rauchwolke in Holzfarbe
+    for (let i = 0; i < smokeCount; i++) {
+      const speed = 0.6 + Math.random() * 1.2;
+      const angBase = upwardBias > 0.5 ? -Math.PI / 2 : (Math.random() - 0.5) * (Math.PI / 3);
+      const ang = angBase + (Math.random() - 0.5) * 0.4;
+      this.particles.push({
+        type: 'smoke',
+        x: x + (Math.random() - 0.5) * 0.5,
+        y: y + 0.1 + (Math.random() - 0.5) * 0.2,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed * 0.6,
+        ax: 0,
+        ay: -2.0,
+        drag: 1.4,
+        life: 320 + Math.random() * 300,
+        age: 0,
+        sizePx: 1,
+        radiusCell: 0.35 + Math.random() * 0.25,
+        startColor: { r: 150, g: 120, b: 90 },
+        endColor: { r: 90, g: 75, b: 65 },
+      });
+    }
+  }
+
   _spawnStoneImpact(x, y, chipFactor, smokeFactor) {
     const baseChips = 14;
     const baseSmoke = 9;
@@ -742,6 +1218,107 @@ export class ParticleSystem {
     this._spawnMetalSparks(x, y, { baseLife, intensity });
   }
 
+  _spawnGlassImpact(x, y, chipFactor, chunkFactor, upwardBias) {
+    const baseChips = 18;
+    const baseChunks = 4;
+    const chipCount = Math.round(baseChips * chipFactor);
+    const chunkCount = Math.round(baseChunks * chunkFactor);
+
+    // Kleine, harte Splitter (fast nur Glas-Chips)
+    for (let i = 0; i < chipCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      // Bänder für links / rechts im oberen Halbraum, mit seltenem reinen "nach oben"
+      if (bandR < 0.4) baseAngle = (-3 * Math.PI) / 4; // links-oben
+      else if (bandR < 0.8) baseAngle = -Math.PI / 4; // rechts-oben
+      else baseAngle = -Math.PI / 2; // direkt nach oben
+
+      const spread = Math.PI / 10;
+      let ang = baseAngle + (Math.random() - 0.5) * spread;
+      // Leichter Bias Richtung oben je nach Paar
+      ang = lerp(ang, -Math.PI / 2, upwardBias * 0.6);
+
+      const speed = 4.8 + Math.random() * 4.5;
+      const size = 2 + Math.floor(Math.random() * 2);
+
+      this.particles.push({
+        type: 'glassChip',
+        x: x + (Math.random() - 0.5) * 0.4,
+        y: y + (Math.random() - 0.5) * 0.25,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 18,
+        dragK: 3.1,
+        bounceE: 0.4,
+        friction: 0.26,
+        contactDamping: 0.8,
+        sleepThreshold: 1.3,
+        sleepAngularThreshold: 1.0,
+        life: 260 + Math.random() * 620,
+        age: 0,
+        sizePx: size,
+        angle: Math.random() * Math.PI * 2,
+        angVel: (Math.random() - 0.5) * 14,
+        angularDamping: 0.9,
+        startColor: {
+          r: 188 + Math.random() * 35,
+          g: 228 + Math.random() * 28,
+          b: 255,
+        },
+        endColor: {
+          r: 150 + Math.random() * 25,
+          g: 210 + Math.random() * 25,
+          b: 245,
+        },
+      });
+    }
+
+    // Ein paar größere Scherben für harte Impacts
+    for (let i = 0; i < chunkCount; i++) {
+      const bandR = Math.random();
+      let baseAngle;
+      if (bandR < 0.5) baseAngle = (-3 * Math.PI) / 4;
+      else baseAngle = -Math.PI / 4;
+      const spread = Math.PI / 12;
+      let ang = baseAngle + (Math.random() - 0.5) * spread;
+      ang = lerp(ang, -Math.PI / 2, upwardBias * 0.4);
+
+      const speed = 3.2 + Math.random() * 3.3;
+      const size = 3 + Math.floor(Math.random() * 2);
+
+      this.particles.push({
+        type: 'glassChunk',
+        x: x + (Math.random() - 0.5) * 0.35,
+        y: y + (Math.random() - 0.5) * 0.22,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        ay: 18,
+        dragK: 2.5,
+        bounceE: 0.34,
+        friction: 0.3,
+        contactDamping: 0.78,
+        sleepThreshold: 1.1,
+        sleepAngularThreshold: 0.9,
+        life: 420 + Math.random() * 960,
+        age: 0,
+        sizePx: size,
+        angle: Math.random() * Math.PI * 2,
+        angVel: (Math.random() - 0.5) * 9,
+        angularDamping: 0.92,
+        startColor: {
+          r: 185 + Math.random() * 25,
+          g: 225 + Math.random() * 20,
+          b: 255,
+        },
+        endColor: {
+          r: 150 + Math.random() * 20,
+          g: 205 + Math.random() * 20,
+          b: 245,
+        },
+      });
+    }
+  }
+
   _spawnMetalSparks(x, y, options = {}) {
     const baseCount = 26;
     const intensity = options.intensity ?? 1;
@@ -777,6 +1354,97 @@ export class ParticleSystem {
         sizePx: 1 + Math.floor(Math.random() * 3),
         temp: 1.1 + Math.random() * 0.4, // 1 = sehr heiß
       });
+    }
+  }
+
+  _spawnSlimeSplats(x, y) {
+    // Deutlich sichtbarer Splash: mehrere getrennte Tropfen
+    const mainCount = 8;
+    const tinyCount = 20;
+
+    // Größere Haupt-Tropfen
+    for (let i = 0; i < mainCount; i++) {
+      const angle = (-Math.PI / 2) + (Math.random() - 0.5) * (Math.PI / 2.2);
+      const speed = 3.2 + Math.random() * 2.6;
+      const radiusCell = 0.25 + Math.random() * 0.12;
+
+      this.particles.push({
+        type: 'slimeDrop',
+        x: x + (Math.random() - 0.5) * 1.4,
+        y: y + (Math.random() - 0.5) * 0.4,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragK: 2.6,
+        viscosity: 4.2,
+        bounceE: 0.05,
+        friction: 0.9,
+        contactDamping: 0.55,
+        sleepThreshold: 0.6,
+        life: 600 + Math.random() * 900,
+        age: 0,
+        sizePx: 4 + Math.floor(Math.random() * 2),
+        radiusCell,
+        stretchX: 1.2,
+        stretchY: 0.9,
+        squashDuration: 220,
+        startColor: {
+          r: 80 + Math.random() * 25,
+          g: 210 + Math.random() * 35,
+          b: 140 + Math.random() * 30,
+        },
+        endColor: {
+          r: 60 + Math.random() * 20,
+          g: 180 + Math.random() * 30,
+          b: 110 + Math.random() * 25,
+        },
+      });
+    }
+
+    // Kleine Sekundär-Tropfen
+    for (let i = 0; i < tinyCount; i++) {
+      const angle = (-Math.PI / 2) + (Math.random() - 0.5) * (Math.PI / 1.3);
+      const speed = 2.4 + Math.random() * 2.4;
+      const radiusCell = 0.18 + Math.random() * 0.10;
+
+      this.particles.push({
+        type: 'slimeTiny',
+        x: x + (Math.random() - 0.5) * 1.8,
+        y: y + (Math.random() - 0.5) * 0.6,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        ay: 18,
+        dragK: 2.8,
+        viscosity: 4.5,
+        bounceE: 0.04,
+        friction: 0.9,
+        contactDamping: 0.55,
+        sleepThreshold: 0.7,
+        life: 380 + Math.random() * 520,
+        age: 0,
+        sizePx: 2,
+        radiusCell,
+        stretchX: 1.1,
+        stretchY: 0.95,
+        squashDuration: 160,
+        startColor: {
+          r: 85 + Math.random() * 20,
+          g: 215 + Math.random() * 30,
+          b: 145 + Math.random() * 25,
+        },
+        endColor: {
+          r: 65 + Math.random() * 20,
+          g: 185 + Math.random() * 25,
+          b: 120 + Math.random() * 20,
+        },
+      });
+    }
+  }
+
+  spawnSlimeImpactForMoves(moves) {
+    if (!moves || !moves.length) return;
+    for (const m of moves) {
+      this._spawnSlimeSplats(m.x, m.toY);
     }
   }
 }

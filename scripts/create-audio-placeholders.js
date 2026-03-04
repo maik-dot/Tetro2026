@@ -26,6 +26,17 @@ const NAMES = [
   'stoneImpactMetal',
   'stoneImpactGlass',
   'stoneImpactWood',
+  'woodImpactStone',
+  'woodImpactMetal',
+  'woodImpactGlass',
+  'woodImpactWood',
+  // eigener Glas-auf-Glas-Impact
+  'glassImpactGlass',
+  // neue Materialien
+  'grassBreak',
+  'slimeBreak',
+  'slimeImpact',
+  'grassImpact',
 ];
 
 function createMinimalWav() {

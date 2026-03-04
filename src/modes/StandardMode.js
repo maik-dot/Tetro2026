@@ -6,6 +6,7 @@ import { PauseMenu } from '../ui/PauseMenu.js';
 import { ParticleSystem } from '../render/ParticleSystem.js';
 import { AnimationSystem } from '../render/AnimationSystem.js';
 import { AudioManager } from '../audio/AudioManager.js';
+import { FloatingFxManager } from '../ui/FloatingFx.js';
 import { MATERIALS, BOARD_HEIGHT } from '../config/gameConfig.js';
 
 export class StandardMode {
@@ -22,10 +23,19 @@ export class StandardMode {
     this.hud = new HudRenderer();
     this.particles = new ParticleSystem(BOARD_HEIGHT);
     this.animation = new AnimationSystem();
+    this.fx = new FloatingFxManager();
     this._lastLevel = 1;
     this._musicStarted = false;
     this._wasPaused = this.game.paused;
+    this._slimeSettleTimer = 0;
     this.pauseMenu = new PauseMenu(this.audio, this.game);
+    if (this.pauseMenu) {
+      this.pauseMenu.onDebugAnimationChange = (enabled) => {
+        if (this.animation?.setDebugSlowAnimations) {
+          this.animation.setDebugSlowAnimations(enabled);
+        }
+      };
+    }
   }
 
   onEnter() {}
@@ -39,11 +49,22 @@ export class StandardMode {
   update(dt) {
     if (this.input) this.input.update(dt);
     if (this.game) {
-      this.game.update(dt);
-      this.handleGameEvents();
+      if (this._slimeSettleTimer > 0) {
+        this._slimeSettleTimer -= dt;
+        if (this._slimeSettleTimer < 0) this._slimeSettleTimer = 0;
+      } else {
+        this.game.update(dt);
+        this.handleGameEvents();
+      }
       if (this.game.level > this._lastLevel) {
         this._lastLevel = this.game.level;
         if (this.audio) this.audio.playSfx('levelUp');
+        if (this.fx) {
+          this.fx.spawnLevelUp({
+            level: this.game.level,
+            subtitle: 'Speed Increased',
+          });
+        }
       }
       if (
         this.audio &&
@@ -78,12 +99,16 @@ export class StandardMode {
     }
     if (this.particles) this.particles.update(dt);
     if (this.animation) this.animation.update(dt);
+    if (this.fx) this.fx.update(dt);
     if (this.hud) this.hud.updateFromGame(this.game);
   }
 
   render() {
     if (!this.renderer || !this.canvasContext || !this.game) return;
     this.renderer.render(this.canvasContext, this.game, this.particles, this.animation);
+    if (this.fx && this.canvasContext?.ctx) {
+      this.fx.draw(this.canvasContext.ctx);
+    }
   }
 
   handleGameEvents() {
@@ -103,6 +128,8 @@ export class StandardMode {
               let playedStone = false;
               let playedWood = false;
               let playedGlass = false;
+              let playedGrass = false;
+              let playedSlime = false;
               for (const d of evt.destroyed) {
                 const mat = d.cell?.materialId;
                 if (!mat) continue;
@@ -115,6 +142,12 @@ export class StandardMode {
                 } else if (mat === 'glass' && !playedGlass) {
                   this.audio.playSfx('glassBreak');
                   playedGlass = true;
+                } else if (mat === 'grass' && !playedGrass) {
+                  this.audio.playSfx('grassBreak', { volumeMultiplier: 1.5 });
+                  playedGrass = true;
+                } else if (mat === 'slime' && !playedSlime) {
+                  this.audio.playSfx('slimeBreak');
+                  playedSlime = true;
                 }
               }
             }
@@ -131,16 +164,63 @@ export class StandardMode {
         if (this.animation && evt.moves?.length) {
           this.animation.addBlockFalls(evt.moves, MATERIALS);
         }
+        if (this.fx && evt.rows?.length) {
+          const ctx = this.canvasContext?.ctx;
+          if (ctx) {
+            this.fx.spawnScoreForLines(ctx, evt.rows, this.game.level);
+          }
+        }
+      }
+      if (evt.type === 'fragmentDecay') {
+        if (this.particles && evt.destroyed?.length) {
+          this.particles.spawnDestroyBlocks(evt.destroyed);
+        }
+        if (this.animation && evt.moves?.length) {
+          this.animation.addBlockFalls(evt.moves, MATERIALS);
+        }
+        if (this.audio && evt.destroyed?.length) {
+          let playedStone = false;
+          let playedWood = false;
+          let playedGlass = false;
+          let playedGrass = false;
+          let playedSlime = false;
+          for (const d of evt.destroyed) {
+            const mat = d.cell?.materialId;
+            if (!mat) continue;
+            if (mat === 'stone' && !playedStone) {
+              this.audio.playSfx('stoneBreak');
+              playedStone = true;
+            } else if (mat === 'wood' && !playedWood) {
+              this.audio.playSfx('woodBreak');
+              playedWood = true;
+            } else if (mat === 'glass' && !playedGlass) {
+              this.audio.playSfx('glassBreak');
+              playedGlass = true;
+            } else if (mat === 'grass' && !playedGrass) {
+              this.audio.playSfx('grassBreak', { volumeMultiplier: 1.5 });
+              playedGrass = true;
+            } else if (mat === 'slime' && !playedSlime) {
+              this.audio.playSfx('slimeBreak');
+              playedSlime = true;
+            }
+          }
+        }
       }
       if (evt.type === 'pieceLocked') {
+        const isSlimePiece = evt.piece?.materialId === 'slime';
         if (this.audio) {
-          if (evt.impactType === 'soft') {
-            this.audio.playSfx('lockSoft');
-          } else if (evt.impactType === 'normal') {
-            this.audio.playSfx('lock');
+          if (isSlimePiece) {
+            // Schleim-Tetromino: eigener Impact-Sound statt lock/lockSoft/lockHard
+            this.audio.playSfx('slimeImpact');
+          } else {
+            if (evt.impactType === 'soft') {
+              this.audio.playSfx('lockSoft');
+            } else if (evt.impactType === 'normal') {
+              this.audio.playSfx('lock');
+            }
+            // Für impactType === 'hard' wird der Whoosh (lockHard)
+            // bereits beim Auslösen des Harddrops im InputManager gespielt.
           }
-          // Für impactType === 'hard' wird der Whoosh (lockHard)
-          // bereits beim Auslösen des Harddrops im InputManager gespielt.
         }
         if (this.animation && evt.impactType !== 'normal') {
           const shakeByImpact = {
@@ -161,7 +241,8 @@ export class StandardMode {
         // Zusätzlicher, abgeschwächter Bounce-Impact-SFX nach dem visuellen Bounce
         // Soft-Drop nutzt den generischen "lock"-Sound, Hard-Drop nutzt den
         // zuletzt gespielten Material-Impact-SFX (stone-/metal-impact*).
-        if (this.audio && evt.impactType === 'soft') {
+        // Für Schleim keine zusätzlichen Bounce-SFX (nur ein Impact-Sound).
+        if (this.audio && evt.impactType === 'soft' && evt.piece?.materialId !== 'slime') {
           const bounceDelay = 80;
           setTimeout(() => {
             if (!this.audio || this.game.gameOver) return;
@@ -179,7 +260,7 @@ export class StandardMode {
               pan: panJitter,
             });
           }, bounceDelay);
-        } else if (this.audio && evt.impactType === 'hard') {
+        } else if (this.audio && evt.impactType === 'hard' && evt.piece?.materialId !== 'slime') {
           const sfxName = this._lastImpactSfx || 'lockHard';
           // Hard-Bounce-SFX zeitlich ans Ende der Bounce-Animation legen
           const bounceDelay = 220;
@@ -201,6 +282,21 @@ export class StandardMode {
           }, bounceDelay);
         }
       }
+      if (evt.type === 'slimeSettle') {
+        if (this.animation && evt.moves?.length) {
+          this.animation.addBlockFalls(evt.moves, MATERIALS);
+          const cells = evt.moves.map((m) => ({ x: m.x, y: m.toY }));
+          this.animation.addLockBounce(cells, 'slime');
+        }
+        if (this.particles && evt.moves?.length) {
+          this.particles.spawnSlimeImpactForMoves(evt.moves);
+        }
+        if (this.audio) {
+          this.audio.playSfx('slimeImpact');
+        }
+        // Spielfluss kurz anhalten, bis die Schleim-Animation fertig ist
+        this._slimeSettleTimer = Math.max(this._slimeSettleTimer, 260);
+      }
       if (evt.type === 'gameOver' && this.audio) {
         this.audio.stopMusic();
         this._musicStarted = false;
@@ -216,6 +312,9 @@ export class StandardMode {
 
     let metalImpactPlayed = false;
     let stoneImpactPlayed = false;
+    let woodImpactPlayed = false;
+    let glassImpactPlayed = false;
+    let grassImpactPlayed = false;
 
     for (const c of cells) {
       const here = board.getCell(c.x, c.y);
@@ -228,11 +327,22 @@ export class StandardMode {
       const cy = c.y + 1;
       particles.spawnMetalContactSparks(cx, cy, matA, matB);
       particles.spawnStoneImpactDebris(cx, cy, matA, matB);
+      particles.spawnWoodImpactDebris(cx, cy, matA, matB);
+      particles.spawnGrassImpactDebris(cx, cy, matA, matB);
       if (!metalImpactPlayed) {
         metalImpactPlayed = this._playMetalImpactForPair(matA, matB) || metalImpactPlayed;
       }
       if (!stoneImpactPlayed) {
         stoneImpactPlayed = this._playStoneImpactForPair(matA, matB) || stoneImpactPlayed;
+      }
+      if (!woodImpactPlayed) {
+        woodImpactPlayed = this._playWoodImpactForPair(matA, matB) || woodImpactPlayed;
+      }
+      if (!glassImpactPlayed) {
+        glassImpactPlayed = this._playGlassImpactForPair(matA, matB) || glassImpactPlayed;
+      }
+      if (!grassImpactPlayed) {
+        grassImpactPlayed = this._playGrassImpactForPair(matA, matB) || grassImpactPlayed;
       }
     }
   }
@@ -244,6 +354,9 @@ export class StandardMode {
 
     let metalImpactPlayed = false;
     let stoneImpactPlayed = false;
+    let woodImpactPlayed = false;
+    let glassImpactPlayed = false;
+    let grassImpactPlayed = false;
 
     for (const m of moves) {
       const x = m.x;
@@ -258,11 +371,22 @@ export class StandardMode {
       const cy = y + 1;
       particles.spawnMetalContactSparks(cx, cy, matA, matB);
       particles.spawnStoneImpactDebris(cx, cy, matA, matB);
+      particles.spawnWoodImpactDebris(cx, cy, matA, matB);
+      particles.spawnGrassImpactDebris(cx, cy, matA, matB);
       if (!metalImpactPlayed) {
         metalImpactPlayed = this._playMetalImpactForPair(matA, matB) || metalImpactPlayed;
       }
       if (!stoneImpactPlayed) {
         stoneImpactPlayed = this._playStoneImpactForPair(matA, matB) || stoneImpactPlayed;
+      }
+      if (!woodImpactPlayed) {
+        woodImpactPlayed = this._playWoodImpactForPair(matA, matB) || woodImpactPlayed;
+      }
+      if (!glassImpactPlayed) {
+        glassImpactPlayed = this._playGlassImpactForPair(matA, matB) || glassImpactPlayed;
+      }
+      if (!grassImpactPlayed) {
+        grassImpactPlayed = this._playGrassImpactForPair(matA, matB) || grassImpactPlayed;
       }
     }
   }
@@ -312,6 +436,72 @@ export class StandardMode {
     }
     this.audio.playSfx(sfx);
     this._lastImpactSfx = sfx;
+    return true;
+  }
+
+  _playWoodImpactForPair(matA, matB) {
+    if (!this.audio) return false;
+    if (matA !== 'wood' && matB !== 'wood') return false;
+    const other = matA === 'wood' ? matB : matA;
+    let sfx = null;
+    switch (other) {
+      case 'stone':
+        // Holz auf Stein nutzt denselben SFX wie Stein auf Holz
+        sfx = 'stoneImpactWood';
+        break;
+      case 'metal':
+        // Holz auf Metall nutzt denselben SFX wie Stein auf Metall (mittlere Härte)
+        sfx = 'metalImpactMedium';
+        break;
+      case 'glass':
+        sfx = 'woodImpactGlass';
+        break;
+      case 'wood':
+        sfx = 'woodImpactWood';
+        break;
+      default:
+        return false;
+    }
+    this.audio.playSfx(sfx);
+    this._lastImpactSfx = sfx;
+    return true;
+  }
+
+  _playGlassImpactForPair(matA, matB) {
+    if (!this.audio) return false;
+    if (matA !== 'glass' && matB !== 'glass') return false;
+    const other = matA === 'glass' ? matB : matA;
+    let sfx = null;
+    switch (other) {
+      case 'stone':
+        // Glas auf Stein nutzt denselben SFX wie Stein auf Glas
+        sfx = 'stoneImpactGlass';
+        break;
+      case 'metal':
+        // Glas auf Metall nutzt den leichten Metall-Impact für Glas
+        sfx = 'metalImpactLight';
+        break;
+      case 'glass':
+        // eigener Glas-auf-Glas-Impact
+        sfx = 'glassImpactGlass';
+        break;
+      case 'wood':
+        // Glas auf Holz nutzt denselben SFX wie Holz auf Glas
+        sfx = 'woodImpactGlass';
+        break;
+      default:
+        return false;
+    }
+    this.audio.playSfx(sfx);
+    this._lastImpactSfx = sfx;
+    return true;
+  }
+
+  _playGrassImpactForPair(matA, matB) {
+    if (!this.audio) return false;
+    if (matA !== 'grass' && matB !== 'grass') return false;
+    // Immer derselbe SFX, unabhängig vom Kollisionspartner.
+    this.audio.playSfx('grassImpact');
     return true;
   }
 }

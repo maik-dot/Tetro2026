@@ -232,7 +232,10 @@ export class Renderer {
         const glowAlpha = alpha * 0.35;
         ctx.fillStyle = `rgba(${r},${g},${b},${glowAlpha})`;
         ctx.fillRect(0, -thicknessPx, lengthPx * 1.4, thicknessPx * 2);
-      } else if (p.type === 'smoke' && p.radiusCell) {
+      } else if (
+        (p.type === 'smoke' || p.type === 'slimeDrop' || p.type === 'slimeTiny') &&
+        p.radiusCell
+      ) {
         const start = p.startColor || { r: 255, g: 255, b: 255 };
         const end = p.endColor || start;
         r = Math.round(start.r + (end.r - start.r) * t);
@@ -260,7 +263,9 @@ export class Renderer {
           p.type === 'woodFine' ||
           p.type === 'woodChunk' ||
           p.type === 'glassChip' ||
-          p.type === 'glassChunk'
+          p.type === 'glassChunk' ||
+          p.type === 'grassBlade' ||
+          p.type === 'dirtChunk'
         ) {
           // längliche / kantige Fragmente als gedrehte Rechtecke
           let w = sizePx;
@@ -280,6 +285,12 @@ export class Renderer {
           } else if (p.type === 'stoneChunk') {
             w = sizePx * 1.3;
             h = sizePx;
+          } else if (p.type === 'grassBlade') {
+            w = sizePx * 2.0;
+            h = sizePx * 0.5;
+          } else if (p.type === 'dirtChunk') {
+            w = sizePx * 1.0;
+            h = sizePx * 1.0;
           }
           ctx.translate(px, py);
           ctx.rotate(p.angle ?? 0);
