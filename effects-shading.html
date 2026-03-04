@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Shading-Playground (2D)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="shadingCanvas" width="480" height="320"></canvas>
+      <div id="ui">
+        <h1>Shading-Playground (2D-Canvas)</h1>
+        <div class="controls">
+          <h2>Modus</h2>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 4px">
+            Rendering-Modus:
+            <select id="shadingMode" style="width: 100%; margin-top: 4px">
+              <option value="texture">Textur + Glas-Overlay</option>
+              <option value="procedural">Prozedural (ohne Textur)</option>
+              <option value="compare">Vergleich (links Textur, rechts prozedural)</option>
+            </select>
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-top: 8px">
+            Material:
+            <select id="shadingMaterial" style="width: 100%; margin-top: 4px">
+              <option value="wood">Holz</option>
+              <option value="stone">Stein</option>
+              <option value="metal">Metall</option>
+              <option value="glass">Glas</option>
+              <option value="grass" selected>Gras</option>
+              <option value="slime">Schleim</option>
+            </select>
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-top: 8px">
+            Shading-Intensität:
+            <input
+              id="shadingIntensity"
+              type="range"
+              min="0"
+              max="100"
+              value="65"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+        </div>
+        <div class="controls">
+          <h2>Beschreibung</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Dieser Playground rendert eine kleine Blockmatrix mit
+            <strong>Comic-Bevel + Glas-Highlight</strong>, entweder
+            <strong>mit</strong> geladenen Textur-PNGs oder
+            <strong>rein prozedural</strong> (ohne Texturen).
+            So kannst du vergleichen, wie viel Tiefe man allein mit
+            Verläufen, Kanten und Glanz erzeugen kann.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsShadingPlayground.js"></script>
+  </body>
+  </html>
+

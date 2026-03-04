@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Comic-Rock Playground</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="rockCanvas" width="512" height="256"></canvas>
+      <div id="ui">
+        <h1>Comic-Rock Playground</h1>
+        <div class="controls">
+          <h2>Parameter</h2>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Seed-Basis:
+            <input
+              id="rockSeed"
+              type="number"
+              value="1"
+              step="1"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Radius:
+            <input
+              id="rockRadius"
+              type="range"
+              min="10"
+              max="60"
+              value="32"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Helligkeit (Base L):
+            <input
+              id="rockLightness"
+              type="range"
+              min="20"
+              max="70"
+              value="42"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <button id="rockRedraw" style="margin-top: 8px; width: 100%">
+            Neu generieren
+          </button>
+        </div>
+        <div class="controls">
+          <h2>Beschreibung</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Mit diesem Playground kannst du die Funktion
+            <code>drawComicRock</code> testen. Links wird ein kleines
+            &bdquo;Feld&ldquo; aus mehreren Felsen gezeichnet, rechts ein
+            einzelner Fels in größer. Alle Formen, Schatten, Highlights und
+            Risse sind prozedural.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsRockPlayground.js"></script>
+  </body>
+  </html>
+

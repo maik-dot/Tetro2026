@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Procedural Grass Playground</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="grassCanvas" width="512" height="256"></canvas>
+      <div id="ui">
+        <h1>Grass-Playground (prozedurale Kachel)</h1>
+        <div class="controls">
+          <h2>Parameter</h2>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Seed:
+            <input
+              id="grassSeed"
+              type="number"
+              value="1337"
+              step="1"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Dichte (Büschelmenge):
+            <input
+              id="grassDensity"
+              type="range"
+              min="25"
+              max="200"
+              value="100"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Comic-Ink (Kontur):
+            <input
+              id="grassInk"
+              type="range"
+              min="0"
+              max="100"
+              value="60"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <button id="grassRedraw" style="margin-top: 8px; width: 100%">
+            Neu generieren
+          </button>
+        </div>
+        <div class="controls">
+          <h2>Beschreibung</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Hier wird eine <strong>prozedurale Gras-Kachel</strong> komplett in
+            Canvas2D gezeichnet. Links siehst du das
+            <strong>Wiederholmuster</strong> (Pattern), oben rechts die
+            <strong>einzelne Tile</strong>. So kannst du beurteilen, ob dieser
+            Stil als Ersatz oder Ergänzung zu PNG-Texturen taugt.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsGrassPlayground.js"></script>
+  </body>
+  </html>
+

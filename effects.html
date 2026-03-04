@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Effekte & Animationen Test</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="effectsCanvas" width="400" height="800"></canvas>
+      <div id="ui">
+        <h1>Effekte-Test</h1>
+        <div class="controls">
+          <h2>Tests</h2>
+          <ul id="effectsTestList"></ul>
+          <button id="effectsClearBtn" style="margin-top: 8px; width: 100%">
+            Partikel löschen
+          </button>
+        </div>
+        <div class="controls">
+          <h2>Hinweis</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Jede Schaltfläche triggert einen einzelnen Effekt in einer
+            vereinfachten Testszene. Neue Tests können später einfach im
+            Skript <code>effectsPlayground.js</code> über die
+            <code>TESTS</code>-Liste ergänzt werden.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsPlayground.js"></script>
+  </body>
+  </html>
+

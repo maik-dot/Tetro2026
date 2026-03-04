@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Grass-Dirt-Block Playground</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="grassDirtCanvas" width="512" height="512"></canvas>
+      <div id="ui">
+        <h1>Grass-Dirt-Block (prozedural)</h1>
+        <div class="controls">
+          <h2>Parameter</h2>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Seed:
+            <input
+              id="grassDirtSeed"
+              type="number"
+              value="1337"
+              step="1"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Gras-Höhe:
+            <input
+              id="grassDirtGrassH"
+              type="range"
+              min="20"
+              max="60"
+              value="34"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px">
+            Anzahl Steine:
+            <input
+              id="grassDirtPebbles"
+              type="range"
+              min="40"
+              max="260"
+              value="140"
+              style="width: 100%; margin-top: 4px"
+            />
+          </label>
+          <button id="grassDirtRedraw" style="margin-top: 8px; width: 100%">
+            Neu generieren
+          </button>
+        </div>
+        <div class="controls">
+          <h2>Beschreibung</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Dieses Playground rendert einen einzelnen
+            <strong>Grass-Dirt-Block</strong> komplett prozedural in Canvas2D –
+            inklusive Gras, Erde, Steinen, Blumen und Bevel. Links siehst du
+            ein 2×2-Muster (Tiling-Test), rechts unten einen einzelnen Block in
+            Originalgröße.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsGrassDirtPlayground.js"></script>
+  </body>
+  </html>
+

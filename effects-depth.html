@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tetris – Depth-Playground (Heightmap)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="depthCanvas" width="320" height="320"></canvas>
+      <div id="ui">
+        <h1>Depth-Playground (Heightmap)</h1>
+        <div class="controls">
+          <h2>Licht-Richtung</h2>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 8px">
+            Azimut (Grad, 0° = rechts, 90° = unten):
+            <input
+              id="depthAzimuth"
+              type="range"
+              min="0"
+              max="360"
+              value="315"
+              style="width: 100%; margin-top: 4px"
+            />
+            <span id="depthAzimuthValue" style="font-size: 0.8rem; opacity: 0.8">
+              315°
+            </span>
+          </label>
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 8px">
+            Elevation (Grad, 0° = horizontales Licht):
+            <input
+              id="depthElevation"
+              type="range"
+              min="10"
+              max="80"
+              value="55"
+              style="width: 100%; margin-top: 4px"
+            />
+            <span id="depthElevationValue" style="font-size: 0.8rem; opacity: 0.8">
+              55°
+            </span>
+          </label>
+          <button id="depthRandomize" style="margin-top: 6px; width: 100%">
+            Heightmap neu mischen
+          </button>
+        </div>
+        <div class="controls">
+          <h2>Beschreibung</h2>
+          <p style="font-size: 0.8rem; opacity: 0.9">
+            Dieser Playground rendert einen einzelnen Block über eine
+            <strong>prozedurale Heightmap</strong> mit
+            <strong>per-Pixel-Lichtberechnung</strong>. Du kannst die
+            Licht-Richtung ändern und siehst, wie sich das Relief wie bei
+            einem einfachen Normal-/Depth-Mapping verhält – allerdings rein
+            in JavaScript auf einem 2D-Canvas, nur als Technik-Demo.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/effectsDepthPlayground.js"></script>
+  </body>
+  </html>
+
